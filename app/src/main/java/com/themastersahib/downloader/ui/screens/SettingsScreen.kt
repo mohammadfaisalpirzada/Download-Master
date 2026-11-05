@@ -26,7 +26,11 @@ import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Subscriptions
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Update
 import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Update
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -52,7 +56,10 @@ import com.themastersahib.downloader.ui.theme.PrimaryBlue
 @Composable
 fun SettingsScreen(
     maxConcurrency: Int,
-    onConcurrencyChanged: (Int) -> Unit
+    updateStatusMessage: String?,
+    onConcurrencyChanged: (Int) -> Unit,
+    onCheckUpdates: () -> Unit,
+    onClearUpdateStatus: () -> Unit
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -69,6 +76,64 @@ fun SettingsScreen(
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
+
+        // Software Update & Auto-Update Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.SystemUpdate,
+                        contentDescription = null,
+                        tint = AccentCyan,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Software Updates",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = "Download Master automatically checks for new releases on startup and notifies you when an update is available. You can also check manually at any time.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 18.sp
+                )
+
+                if (!updateStatusMessage.isNullOrEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = updateStatusMessage,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AccentCyan,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = onCheckUpdates,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                ) {
+                    Icon(Icons.Default.Update, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Check for Updates Now", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
 
         // Concurrent Downloads Limit Setting
         Card(

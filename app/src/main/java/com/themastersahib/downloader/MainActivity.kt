@@ -39,6 +39,7 @@ import com.themastersahib.downloader.data.model.TaskStatus
 import com.themastersahib.downloader.ui.FetchState
 import com.themastersahib.downloader.ui.MainViewModel
 import com.themastersahib.downloader.ui.components.FormatSelectionBottomSheet
+import com.themastersahib.downloader.ui.components.UpdateDialog
 import com.themastersahib.downloader.ui.components.VideoPlayerDialog
 import com.themastersahib.downloader.ui.screens.DownloadsScreen
 import com.themastersahib.downloader.ui.screens.GalleryScreen
@@ -71,11 +72,26 @@ class MainActivity : ComponentActivity() {
                 val savedFiles by viewModel.savedFiles.collectAsState()
                 val detectedClipboardUrl by viewModel.detectedClipboardUrl.collectAsState()
                 val maxConcurrency by viewModel.maxConcurrency.collectAsState()
+                val availableUpdate by viewModel.availableUpdate.collectAsState()
+                val isDownloadingUpdate by viewModel.isDownloadingUpdate.collectAsState()
+                val updateProgress by viewModel.updateProgress.collectAsState()
+                val updateStatusMessage by viewModel.updateStatusMessage.collectAsState()
 
                 var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
                 var activePlayerUri by remember { mutableStateOf<Uri?>(null) }
 
                 val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+                // In-App Auto Update Dialog
+                availableUpdate?.let { update ->
+                    UpdateDialog(
+                        updateInfo = update,
+                        isDownloading = isDownloadingUpdate,
+                        downloadProgress = updateProgress,
+                        onConfirmUpdate = { viewModel.performUpdate() },
+                        onDismiss = { viewModel.dismissUpdateDialog() }
+                    )
+                }
 
                 // Format selection bottom sheet
                 if (fetchState is FetchState.Success) {
@@ -175,7 +191,10 @@ class MainActivity : ComponentActivity() {
                             )
                             Screen.Settings -> SettingsScreen(
                                 maxConcurrency = maxConcurrency,
-                                onConcurrencyChanged = { viewModel.setMaxConcurrency(it) }
+                                updateStatusMessage = updateStatusMessage,
+                                onConcurrencyChanged = { viewModel.setMaxConcurrency(it) },
+                                onCheckUpdates = { viewModel.checkForUpdates(silent = false) },
+                                onClearUpdateStatus = { viewModel.clearUpdateStatusMessage() }
                             )
                         }
                     }

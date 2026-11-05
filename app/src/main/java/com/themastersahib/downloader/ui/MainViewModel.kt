@@ -14,6 +14,8 @@ import com.themastersahib.downloader.data.model.DownloadFormat
 import com.themastersahib.downloader.data.model.DownloadTask
 import com.themastersahib.downloader.data.model.VideoInfo
 import com.themastersahib.downloader.data.parser.LinkParserManager
+import com.themastersahib.downloader.data.update.AppUpdateManager
+import com.themastersahib.downloader.data.update.UpdateInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,9 +32,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val parserManager = LinkParserManager()
     private val downloadRepo = DownloadManagerRepository(application)
+    private val updateManager = AppUpdateManager(application)
 
     val activeTasks: StateFlow<List<DownloadTask>> = downloadRepo.tasks
     val maxConcurrency: StateFlow<Int> = downloadRepo.maxConcurrency
+
+    // In-app Auto Update State
+    private val _availableUpdate = MutableStateFlow<UpdateInfo?>(null)
+    val availableUpdate: StateFlow<UpdateInfo?> = _availableUpdate.asStateFlow()
+
+    private val _isDownloadingUpdate = MutableStateFlow(false)
+    val isDownloadingUpdate: StateFlow<Boolean> = _isDownloadingUpdate.asStateFlow()
+
+    private val _updateProgress = MutableStateFlow(0)
+    val updateProgress: StateFlow<Int> = _updateProgress.asStateFlow()
+
+    private val _updateStatusMessage = MutableStateFlow<String?>(null)
+    val updateStatusMessage: StateFlow<String?> = _updateStatusMessage.asStateFlow()
 
     private val _fetchState = MutableStateFlow<FetchState>(FetchState.Idle)
     val fetchState: StateFlow<FetchState> = _fetchState.asStateFlow()
@@ -51,6 +67,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         loadSavedFiles()
+        checkForUpdates(silent = true)
+    }
+
+    fun checkForUpdates(silent: Boolean = false) {
+        viewModelScope.launch {
+            val result = updateManager.checkForUpdates()
+            result.onSuccess { info ->
+                if (info.hasUpdate) {
+                    _availableUpdate.value = info
+                } else if (!silent) {
+                    _updateStatusMessage.value = "You are already using the latest version."
+                }
+            }.onFailure {
+                if (!silent) {
+                    _updateStatusMessage.value = "Failed to check for updates: ${it.localizedMessage}"
+                }
+            }
+        }
+    }
+
+    fun clearUpdateStatusMessage() {
+        _updateStatusMessage.value = null
+    }
+
+    fun dismissUpdateDialog() {
+        _availableUpdate.value = null
+    }
+
+    fun performUpdate() {
+        val update = _availableUpdate.value ?: return
+        val apkUrl = update.apkDownloadUrl ?: return
+
+        viewModelScope.launch {
+            _isDownloadingUpdate.value = true
+            _updateProgress.value = 0
+            val result = updateManager.downloadAndInstallApk(apkUrl) { progress ->
+                _updateProgress.value = progress
+            }
+            _isDownloadingUpdate.value = false
+            if (result.isFailure) {
+                _updateStatusMessage.value = "Update failed: ${result.exceptionOrNull()?.localizedMessage}"
+            } else {
+                _availableUpdate.value = null
+            }
+        }
     }
 
     fun onUrlChanged(newUrl: String) {
