@@ -12,3 +12,17 @@
 
 # Media3
 -keep class androidx.media3.** { *; }
+
+# NewPipeExtractor
+-keep class org.schabi.newpipe.extractor.** { *; }
+-dontwarn org.schabi.newpipe.extractor.**
+-keep class org.mozilla.javascript.** { *; }
+-keep class org.mozilla.classfile.ClassFileWriter
+-dontwarn org.mozilla.javascript.tools.**
+-dontwarn org.mozilla.javascript.**
+-keep class org.jsoup.** { *; }
+-dontwarn org.jsoup.**
+-keep class com.grack.nanojson.** { *; }
+-dontwarn com.grack.nanojson.**
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn javax.annotation.**

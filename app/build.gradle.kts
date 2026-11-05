@@ -48,6 +48,7 @@ android {
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -63,11 +64,20 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += listOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE*",
+                "META-INF/NOTICE*",
+                "mozilla/public-suffix-list.txt"
+            )
         }
     }
 }
 
 dependencies {
+    // Core library desugaring for NewPipeExtractor & modern Java APIs
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.0.4")
+
     // Jetpack Compose
     val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
     implementation(composeBom)
@@ -92,6 +102,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("com.google.code.gson:gson:2.11.0")
+
+    // On-device stream extraction (Bypasses remote IP blocking and handles YouTube Shorts/Reels)
+    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.24.4")
 
     // Image loading (Thumbnails)
     implementation("io.coil-kt:coil-compose:2.7.0")
