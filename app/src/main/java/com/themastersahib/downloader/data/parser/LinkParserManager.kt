@@ -51,6 +51,8 @@ class LinkParserManager {
 
         return@withContext if (info != null && (info.formats.isNotEmpty() || info.batchSongs.isNotEmpty())) {
             Result.success(info)
+        } else if (platform == SocialPlatform.SUNO || cleanUrl.contains("suno")) {
+            Result.failure(Exception("No songs found. On Suno, please tap 'Share' -> 'Copy Link' on your song or playlist, then paste that link here."))
         } else {
             Result.failure(Exception("Unable to extract video or songs. Please ensure the link is active and accessible."))
         }

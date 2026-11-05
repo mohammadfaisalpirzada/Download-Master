@@ -28,16 +28,14 @@ class SunoParser(private val client: OkHttpClient) {
                 if (!response.isSuccessful) return@withContext null
                 val html = response.body?.string() ?: return@withContext null
 
-                // Check if this is a single song link: e.g. suno.com/song/{uuid}
-                if (cleanUrl.contains("/song/")) {
-                    val matcher = uuidPattern.matcher(cleanUrl)
-                    if (matcher.find()) {
-                        val singleUuid = matcher.group(1)
-                        return@withContext parseSingleSong(html, singleUuid, cleanUrl)
-                    }
+                // Check if this is a single song link or contains song UUID: e.g. suno.com/song/{uuid}
+                val songMatcher = Pattern.compile("(?:/song/|/clip/|^)([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})").matcher(cleanUrl)
+                if (songMatcher.find()) {
+                    val singleUuid = songMatcher.group(1)
+                    return@withContext parseSingleSong(html, singleUuid, cleanUrl)
                 }
 
-                // Parse Multi-Song / Playlist / Create Feed Page (e.g. suno.com/create?wid=default)
+                // Parse Multi-Song / Playlist / Explore Page
                 val batchSongs = extractAllSongsFromPage(html)
                 if (batchSongs.isNotEmpty()) {
                     if (batchSongs.size == 1) {
@@ -55,13 +53,6 @@ class SunoParser(private val client: OkHttpClient) {
                         formats = emptyList(),
                         batchSongs = batchSongs
                     )
-                }
-
-                // If no batch items were found by multi-regex, check if any UUID exists in page
-                val anyUuidMatcher = uuidPattern.matcher(html)
-                if (anyUuidMatcher.find()) {
-                    val fallbackUuid = anyUuidMatcher.group(1)
-                    return@withContext parseSingleSong(html, fallbackUuid, cleanUrl)
                 }
             }
         } catch (e: Exception) {
