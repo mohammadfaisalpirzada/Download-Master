@@ -54,6 +54,7 @@ import com.themastersahib.downloader.data.model.TaskStatus
 import com.themastersahib.downloader.ui.theme.AccentCyan
 import com.themastersahib.downloader.ui.theme.AccentEmerald
 import com.themastersahib.downloader.ui.theme.AccentRose
+import com.themastersahib.downloader.ui.theme.PrimaryBlue
 
 @Composable
 fun DownloadsScreen(
