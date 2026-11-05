@@ -41,6 +41,7 @@ import com.themastersahib.downloader.data.model.TaskStatus
 import com.themastersahib.downloader.ui.FetchState
 import com.themastersahib.downloader.ui.MainViewModel
 import com.themastersahib.downloader.ui.components.FormatSelectionBottomSheet
+import com.themastersahib.downloader.ui.components.SunoBatchSelectionBottomSheet
 import com.themastersahib.downloader.ui.components.UpdateDialog
 import com.themastersahib.downloader.ui.components.VideoPlayerDialog
 import com.themastersahib.downloader.ui.screens.DownloadsScreen
@@ -106,18 +107,30 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                // Format selection bottom sheet
+                // Format selection bottom sheet or Suno Batch Selection Sheet
                 if (fetchState is FetchState.Success) {
                     val info = (fetchState as FetchState.Success).info
-                    FormatSelectionBottomSheet(
-                        videoInfo = info,
-                        sheetState = sheetState,
-                        onDismiss = { viewModel.dismissFormatSheet() },
-                        onDownloadSelected = { format ->
-                            viewModel.startDownload(info, format)
-                            currentScreen = Screen.Downloads
-                        }
-                    )
+                    if (info.isBatch) {
+                        SunoBatchSelectionBottomSheet(
+                            videoInfo = info,
+                            sheetState = sheetState,
+                            onDismiss = { viewModel.dismissFormatSheet() },
+                            onDownloadBatch = { batch ->
+                                viewModel.startBatchDownload(batch)
+                                currentScreen = Screen.Downloads
+                            }
+                        )
+                    } else {
+                        FormatSelectionBottomSheet(
+                            videoInfo = info,
+                            sheetState = sheetState,
+                            onDismiss = { viewModel.dismissFormatSheet() },
+                            onDownloadSelected = { format ->
+                                viewModel.startDownload(info, format)
+                                currentScreen = Screen.Downloads
+                            }
+                        )
+                    }
                 }
 
                 // In-app Video / Audio Player Dialog

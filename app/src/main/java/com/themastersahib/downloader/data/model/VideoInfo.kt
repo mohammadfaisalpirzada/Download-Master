@@ -7,8 +7,12 @@ data class VideoInfo(
     val author: String?,
     val durationSeconds: Long = 0L,
     val platform: SocialPlatform,
-    val formats: List<DownloadFormat>
+    val formats: List<DownloadFormat>,
+    val batchSongs: List<BatchSongItem> = emptyList()
 ) {
+    val isBatch: Boolean
+        get() = batchSongs.isNotEmpty()
+
     val videoFormats: List<DownloadFormat>
         get() = formats.filter { !it.isAudioOnly }
 

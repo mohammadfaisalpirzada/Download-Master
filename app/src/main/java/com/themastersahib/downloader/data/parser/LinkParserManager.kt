@@ -18,6 +18,7 @@ class LinkParserManager {
     private val tikTokParser = TikTokParser(httpClient)
     private val youTubeParser = YouTubeParser(httpClient)
     private val socialMediaParser = SocialMediaParser(httpClient)
+    private val sunoParser = SunoParser(httpClient)
 
     fun detectPlatform(url: String): SocialPlatform {
         return SocialPlatform.fromUrl(url)
@@ -32,18 +33,26 @@ class LinkParserManager {
         val platform = detectPlatform(cleanUrl)
 
         val info = when (platform) {
+            SocialPlatform.SUNO -> sunoParser.parse(cleanUrl)
             SocialPlatform.TIKTOK -> tikTokParser.parse(cleanUrl)
             SocialPlatform.YOUTUBE -> youTubeParser.parse(cleanUrl)
             SocialPlatform.FACEBOOK -> socialMediaParser.parseFacebook(cleanUrl)
             SocialPlatform.INSTAGRAM -> socialMediaParser.parseInstagram(cleanUrl)
             SocialPlatform.TWITTER -> socialMediaParser.parseTwitter(cleanUrl)
-            SocialPlatform.OTHER -> socialMediaParser.parseGeneric(cleanUrl)
+            SocialPlatform.OTHER -> {
+                // If it looks like suno, try Suno first
+                if (cleanUrl.contains("suno")) {
+                    sunoParser.parse(cleanUrl) ?: socialMediaParser.parseGeneric(cleanUrl)
+                } else {
+                    socialMediaParser.parseGeneric(cleanUrl)
+                }
+            }
         }
 
-        return@withContext if (info != null && info.formats.isNotEmpty()) {
+        return@withContext if (info != null && (info.formats.isNotEmpty() || info.batchSongs.isNotEmpty())) {
             Result.success(info)
         } else {
-            Result.failure(Exception("Unable to extract video formats. Please ensure the link is public and active."))
+            Result.failure(Exception("Unable to extract video or songs. Please ensure the link is active and accessible."))
         }
     }
 

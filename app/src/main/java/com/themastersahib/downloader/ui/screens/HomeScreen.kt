@@ -418,6 +418,7 @@ fun HomeScreen(
             PlatformBadge(Icons.Default.VideoLibrary, "Reels & HD Video", PrimaryBlue),
             PlatformBadge(Icons.Default.PhotoCamera, "Reels & Post Videos", AccentRose),
             PlatformBadge(Icons.Default.Tag, "High Quality MP4", Color(0xFF64748B)),
+            PlatformBadge(Icons.Default.MusicNote, "Suno Songs & Batch", Color(0xFFFF5500)),
             PlatformBadge(Icons.Default.Language, "Any Web Video", AccentEmerald)
         )
 

@@ -91,10 +91,13 @@ jobs:
           body: |
             ## Download Master - Release v1.0.${{ github.run_number }}
             - Zero Login Required (100% Privacy Focused)
-            - Supports YouTube, TikTok (No Watermark), Facebook, Instagram, Twitter / X, and Web Videos
+            - Suno AI Music Downloader (Single track and bulk / batch download from create / playlist / explore pages in MP3 audio or MP4 video)
+            - Supports YouTube, TikTok (No Watermark), Facebook, Instagram, Twitter / X, and Universal Web Videos
+            - Optional Private Google Drive Cloud Sync (Zero-Knowledge direct upload to user Drive)
+            - In-App Automated Updater via GitHub Releases
             - Selectable Resolutions (1080p Full HD, 720p HD, 480p, 360p, MP3 Audio)
             - Built-in In-App Player and Gallery
-            - Material 3 Design
+            - Official educational utility by The Master Sahib (www.mastersahib.com)
           files: artifacts/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

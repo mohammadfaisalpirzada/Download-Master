@@ -6,12 +6,14 @@ enum class SocialPlatform(val displayName: String) {
     FACEBOOK("Facebook"),
     INSTAGRAM("Instagram"),
     TWITTER("Twitter / X"),
+    SUNO("Suno AI"),
     OTHER("Web Video");
 
     companion object {
         fun fromUrl(url: String): SocialPlatform {
             val lower = url.lowercase().trim()
             return when {
+                lower.contains("suno.com") || lower.contains("suno.ai") -> SUNO
                 lower.contains("youtube.com") || lower.contains("youtu.be") -> YOUTUBE
                 lower.contains("tiktok.com") -> TIKTOK
                 lower.contains("facebook.com") || lower.contains("fb.watch") || lower.contains("fb.com") -> FACEBOOK

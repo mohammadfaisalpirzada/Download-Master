@@ -276,6 +276,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _detectedClipboardUrl.value = null
     }
 
+    fun startBatchDownload(items: List<Pair<VideoInfo, DownloadFormat>>) {
+        items.forEach { (info, format) ->
+            downloadRepo.startDownload(info, format)
+        }
+        _fetchState.value = FetchState.Idle
+        _urlInput.value = ""
+        _detectedClipboardUrl.value = null
+    }
+
     fun dismissFormatSheet() {
         _fetchState.value = FetchState.Idle
     }
