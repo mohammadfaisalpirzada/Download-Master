@@ -105,6 +105,9 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.4.1")
     implementation("androidx.media3:media3-session:1.4.1")
 
+    // Google Sign-In & Drive Sync Authentication
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
 }

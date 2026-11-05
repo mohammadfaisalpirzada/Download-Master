@@ -7,6 +7,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.themastersahib.downloader.data.auth.GoogleDriveAuthManager
+import com.themastersahib.downloader.data.auth.GoogleUser
 import com.themastersahib.downloader.data.download.DownloadManagerRepository
 import com.themastersahib.downloader.data.download.FileItem
 import com.themastersahib.downloader.data.download.StorageHelper
@@ -33,9 +35,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val parserManager = LinkParserManager()
     private val downloadRepo = DownloadManagerRepository(application)
     private val updateManager = AppUpdateManager(application)
+    private val authManager = GoogleDriveAuthManager(application)
 
     val activeTasks: StateFlow<List<DownloadTask>> = downloadRepo.tasks
     val maxConcurrency: StateFlow<Int> = downloadRepo.maxConcurrency
+
+    // Google Drive User Auth & Sync State
+    private val _googleUser = MutableStateFlow<GoogleUser?>(null)
+    val googleUser: StateFlow<GoogleUser?> = _googleUser.asStateFlow()
+
+    private val _isSyncingToDrive = MutableStateFlow(false)
+    val isSyncingToDrive: StateFlow<Boolean> = _isSyncingToDrive.asStateFlow()
+
+    private val _driveSyncProgress = MutableStateFlow(0)
+    val driveSyncProgress: StateFlow<Int> = _driveSyncProgress.asStateFlow()
+
+    private val _driveSyncMessage = MutableStateFlow<String?>(null)
+    val driveSyncMessage: StateFlow<String?> = _driveSyncMessage.asStateFlow()
+
+    private val _autoSyncToDrive = MutableStateFlow(false)
+    val autoSyncToDrive: StateFlow<Boolean> = _autoSyncToDrive.asStateFlow()
 
     // In-app Auto Update State
     private val _availableUpdate = MutableStateFlow<UpdateInfo?>(null)
@@ -68,6 +87,65 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         loadSavedFiles()
         checkForUpdates(silent = true)
+        loadGoogleUser()
+    }
+
+    private fun loadGoogleUser() {
+        _googleUser.value = authManager.getLastSignedInUser()
+    }
+
+    fun getGoogleSignInIntent(): Intent {
+        return authManager.googleSignInClient.signInIntent
+    }
+
+    fun onGoogleSignInResult(data: Intent?) {
+        val result = authManager.handleSignInResult(data)
+        result.onSuccess { user ->
+            _googleUser.value = user
+            _driveSyncMessage.value = "Connected as ${user.displayName} (${user.email})"
+        }.onFailure { err ->
+            _driveSyncMessage.value = "Sign-in error: ${err.localizedMessage}"
+        }
+    }
+
+    fun signOutGoogle() {
+        authManager.signOut {
+            _googleUser.value = null
+            _autoSyncToDrive.value = false
+            _driveSyncMessage.value = "Signed out of Google Drive"
+        }
+    }
+
+    fun toggleAutoSyncToDrive(enabled: Boolean) {
+        _autoSyncToDrive.value = enabled
+    }
+
+    fun clearDriveSyncMessage() {
+        _driveSyncMessage.value = null
+    }
+
+    fun syncFileToUserGoogleDrive(fileUri: Uri, fileName: String, mimeType: String = "video/mp4") {
+        if (_googleUser.value == null) {
+            _driveSyncMessage.value = "Please sign in with Google first to sync files to your Drive."
+            return
+        }
+
+        viewModelScope.launch {
+            _isSyncingToDrive.value = true
+            _driveSyncProgress.value = 0
+            _driveSyncMessage.value = "Syncing $fileName to your Google Drive..."
+
+            val result = authManager.uploadToUserDrive(fileUri, fileName, mimeType) { progress ->
+                _driveSyncProgress.value = progress
+            }
+
+            _isSyncingToDrive.value = false
+            result.onSuccess { link ->
+                _driveSyncMessage.value = "Successfully synced to your personal Google Drive!"
+            }.onFailure { err ->
+                _driveSyncMessage.value = "Google Drive sync error: ${err.localizedMessage}"
+            }
+        }
     }
 
     fun checkForUpdates(silent: Boolean = false) {

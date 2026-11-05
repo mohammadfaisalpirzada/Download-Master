@@ -4,7 +4,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -76,6 +78,17 @@ class MainActivity : ComponentActivity() {
                 val isDownloadingUpdate by viewModel.isDownloadingUpdate.collectAsState()
                 val updateProgress by viewModel.updateProgress.collectAsState()
                 val updateStatusMessage by viewModel.updateStatusMessage.collectAsState()
+                val googleUser by viewModel.googleUser.collectAsState()
+                val isSyncingToDrive by viewModel.isSyncingToDrive.collectAsState()
+                val driveSyncProgress by viewModel.driveSyncProgress.collectAsState()
+                val driveSyncMessage by viewModel.driveSyncMessage.collectAsState()
+                val autoSyncToDrive by viewModel.autoSyncToDrive.collectAsState()
+
+                val googleSignInLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.StartActivityForResult()
+                ) { result ->
+                    viewModel.onGoogleSignInResult(result.data)
+                }
 
                 var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
                 var activePlayerUri by remember { mutableStateOf<Uri?>(null) }
@@ -170,11 +183,19 @@ class MainActivity : ComponentActivity() {
                                 onCancelTask = { viewModel.cancelTask(it) },
                                 onPlayMedia = { activePlayerUri = it },
                                 onSaveToGoogleDrive = { uri, isAudio ->
-                                    viewModel.saveToGoogleDrive(
-                                        this@MainActivity,
-                                        uri,
-                                        if (isAudio) "audio/mpeg" else "video/mp4"
-                                    )
+                                    if (googleUser != null) {
+                                        viewModel.syncFileToUserGoogleDrive(
+                                            uri,
+                                            "DownloadMaster_${System.currentTimeMillis()}.${if (isAudio) "mp3" else "mp4"}",
+                                            if (isAudio) "audio/mpeg" else "video/mp4"
+                                        )
+                                    } else {
+                                        viewModel.saveToGoogleDrive(
+                                            this@MainActivity,
+                                            uri,
+                                            if (isAudio) "audio/mpeg" else "video/mp4"
+                                        )
+                                    }
                                 }
                             )
                             Screen.Gallery -> GalleryScreen(
@@ -182,19 +203,36 @@ class MainActivity : ComponentActivity() {
                                 onRefresh = { viewModel.loadSavedFiles() },
                                 onPlayMedia = { activePlayerUri = it },
                                 onSaveToGoogleDrive = { uri, isAudio ->
-                                    viewModel.saveToGoogleDrive(
-                                        this@MainActivity,
-                                        uri,
-                                        if (isAudio) "audio/mpeg" else "video/mp4"
-                                    )
+                                    if (googleUser != null) {
+                                        viewModel.syncFileToUserGoogleDrive(
+                                            uri,
+                                            "DownloadMaster_${System.currentTimeMillis()}.${if (isAudio) "mp3" else "mp4"}",
+                                            if (isAudio) "audio/mpeg" else "video/mp4"
+                                        )
+                                    } else {
+                                        viewModel.saveToGoogleDrive(
+                                            this@MainActivity,
+                                            uri,
+                                            if (isAudio) "audio/mpeg" else "video/mp4"
+                                        )
+                                    }
                                 }
                             )
                             Screen.Settings -> SettingsScreen(
                                 maxConcurrency = maxConcurrency,
                                 updateStatusMessage = updateStatusMessage,
+                                googleUser = googleUser,
+                                isSyncingToDrive = isSyncingToDrive,
+                                driveSyncProgress = driveSyncProgress,
+                                driveSyncMessage = driveSyncMessage,
+                                autoSyncToDrive = autoSyncToDrive,
                                 onConcurrencyChanged = { viewModel.setMaxConcurrency(it) },
                                 onCheckUpdates = { viewModel.checkForUpdates(silent = false) },
-                                onClearUpdateStatus = { viewModel.clearUpdateStatusMessage() }
+                                onClearUpdateStatus = { viewModel.clearUpdateStatusMessage() },
+                                onSignInGoogle = { googleSignInLauncher.launch(viewModel.getGoogleSignInIntent()) },
+                                onSignOutGoogle = { viewModel.signOutGoogle() },
+                                onToggleAutoSync = { viewModel.toggleAutoSyncToDrive(it) },
+                                onClearDriveMessage = { viewModel.clearDriveSyncMessage() }
                             )
                         }
                     }

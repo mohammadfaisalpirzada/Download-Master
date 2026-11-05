@@ -31,6 +31,16 @@ import androidx.compose.material.icons.filled.Update
 import androidx.compose.material3.Button
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Update
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import coil.compose.AsyncImage
+import com.themastersahib.downloader.data.auth.GoogleUser
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -42,6 +52,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -57,9 +68,18 @@ import com.themastersahib.downloader.ui.theme.PrimaryBlue
 fun SettingsScreen(
     maxConcurrency: Int,
     updateStatusMessage: String?,
+    googleUser: GoogleUser?,
+    isSyncingToDrive: Boolean,
+    driveSyncProgress: Int,
+    driveSyncMessage: String?,
+    autoSyncToDrive: Boolean,
     onConcurrencyChanged: (Int) -> Unit,
     onCheckUpdates: () -> Unit,
-    onClearUpdateStatus: () -> Unit
+    onClearUpdateStatus: () -> Unit,
+    onSignInGoogle: () -> Unit,
+    onSignOutGoogle: () -> Unit,
+    onToggleAutoSync: (Boolean) -> Unit,
+    onClearDriveMessage: () -> Unit
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -76,6 +96,161 @@ fun SettingsScreen(
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
+
+        // Google Drive User Sync (Zero-Knowledge Architecture)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.CloudUpload,
+                        contentDescription = null,
+                        tint = AccentCyan,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Google Drive Cloud Sync",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = "Sync your downloaded videos directly to your own personal Google Drive. 100% Zero-Knowledge: We do not store or collect any files on external servers; everything stays between your phone and your private Google account.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 18.sp
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                if (googleUser != null) {
+                    // Signed In View
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (!googleUser.photoUrl.isNullOrEmpty()) {
+                            AsyncImage(
+                                model = googleUser.photoUrl,
+                                contentDescription = "Profile Photo",
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.AccountCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(44.dp),
+                                tint = AccentCyan
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = googleUser.displayName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = googleUser.email,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "Connected (Folder: /Download Master)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AccentEmerald,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = onSignOutGoogle,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.ExitToApp, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "Sign Out", fontSize = 11.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Auto-sync completed downloads to Drive",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Switch(
+                            checked = autoSyncToDrive,
+                            onCheckedChange = onToggleAutoSync,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = AccentEmerald
+                            )
+                        )
+                    }
+
+                } else {
+                    // Not Signed In View
+                    Button(
+                        onClick = onSignInGoogle,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                    ) {
+                        Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "Sign In with Google to Sync Drive", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (isSyncingToDrive) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    LinearProgressIndicator(
+                        progress = { driveSyncProgress / 100f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color = AccentCyan
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Syncing file: $driveSyncProgress%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AccentCyan
+                    )
+                }
+
+                if (!driveSyncMessage.isNullOrEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = driveSyncMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AccentCyan,
+                        fontSize = 11.5.sp
+                    )
+                }
+            }
+        }
 
         // Software Update & Auto-Update Card
         Card(
