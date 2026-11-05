@@ -270,7 +270,7 @@ fun SunoBatchSelectionBottomSheet(
                                 resolution = if (isAudio) "320kbps" else "1080p",
                                 downloadUrl = if (isAudio) song.audioUrl else song.videoUrl,
                                 isAudioOnly = isAudio,
-                                extension = if (isAudio) "mp3" else "mp4",
+                                extension = if (isAudio) "m4a" else "mp4",
                                 note = "Suno AI Music"
                             )
                             val singleInfo = VideoInfo(

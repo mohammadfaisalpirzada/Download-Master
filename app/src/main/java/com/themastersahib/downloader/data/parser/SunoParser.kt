@@ -71,6 +71,18 @@ class SunoParser(private val client: OkHttpClient) {
         null
     }
 
+    private fun getAudioUrl(html: String, uuid: String): String {
+        // Check if there is an active stream URL in the page
+        val cfPattern = Pattern.compile("https://([a-zA-Z0-9.-]+\\.cloudfront\\.net)/1/clip/$uuid\\.m4a")
+        val matcher = cfPattern.matcher(html)
+        if (matcher.find()) {
+            val host = matcher.group(1)
+            return "https://$host/1/clip/$uuid.m4a"
+        }
+        // Direct official CloudFront audio stream endpoint for Suno AI
+        return "https://d2lwuy8qc234o3.cloudfront.net/1/clip/$uuid.m4a"
+    }
+
     private fun extractAllSongsFromPage(html: String): List<BatchSongItem> {
         val songsMap = LinkedHashMap<String, BatchSongItem>()
 
@@ -93,7 +105,7 @@ class SunoParser(private val client: OkHttpClient) {
                 songsMap[id] = BatchSongItem(
                     id = id,
                     title = cleanTitle(title),
-                    audioUrl = "https://cdn1.suno.ai/$id.mp3",
+                    audioUrl = getAudioUrl(html, id),
                     videoUrl = "https://cdn1.suno.ai/$id.mp4",
                     coverUrl = "https://cdn2.suno.ai/image_large_$id.png",
                     isSelected = true
@@ -105,12 +117,11 @@ class SunoParser(private val client: OkHttpClient) {
         var count = songsMap.size + 1
         for (uuid in foundUuids) {
             if (!songsMap.containsKey(uuid)) {
-                // Try to find title near this UUID
                 val title = findTitleNearUuid(html, uuid) ?: "Suno AI Track #$count"
                 songsMap[uuid] = BatchSongItem(
                     id = uuid,
                     title = cleanTitle(title),
-                    audioUrl = "https://cdn1.suno.ai/$uuid.mp3",
+                    audioUrl = getAudioUrl(html, uuid),
                     videoUrl = "https://cdn1.suno.ai/$uuid.mp4",
                     coverUrl = "https://cdn2.suno.ai/image_large_$uuid.png",
                     isSelected = true
@@ -155,17 +166,17 @@ class SunoParser(private val client: OkHttpClient) {
         }
 
         val coverUrl = "https://cdn2.suno.ai/image_large_$uuid.png"
-        val audioUrl = "https://cdn1.suno.ai/$uuid.mp3"
+        val audioUrl = getAudioUrl(html, uuid)
         val videoUrl = "https://cdn1.suno.ai/$uuid.mp4"
 
         val formats = listOf(
             DownloadFormat(
-                id = "suno_audio_mp3",
-                label = "Studio Quality Audio (MP3)",
+                id = "suno_audio_m4a",
+                label = "Studio Master Audio (M4A / MP3)",
                 resolution = "320kbps",
                 downloadUrl = audioUrl,
                 isAudioOnly = true,
-                extension = "mp3",
+                extension = "m4a",
                 note = "Original Master Sound Track"
             ),
             DownloadFormat(
@@ -193,12 +204,12 @@ class SunoParser(private val client: OkHttpClient) {
     private fun createVideoInfoFromSong(song: BatchSongItem, originalUrl: String): VideoInfo {
         val formats = listOf(
             DownloadFormat(
-                id = "suno_audio_mp3",
-                label = "Studio Quality Audio (MP3)",
+                id = "suno_audio_m4a",
+                label = "Studio Master Audio (M4A / MP3)",
                 resolution = "320kbps",
                 downloadUrl = song.audioUrl,
                 isAudioOnly = true,
-                extension = "mp3",
+                extension = "m4a",
                 note = "Original Master Sound Track"
             ),
             DownloadFormat(

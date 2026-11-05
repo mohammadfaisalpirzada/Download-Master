@@ -3,6 +3,7 @@ package com.themastersahib.downloader.ui.screens
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,6 +50,8 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -342,18 +345,85 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
+                // Interactive Counter / Stepper with - and + buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    listOf(1, 2, 3, 5).forEach { count ->
+                    Text(
+                        text = "$maxConcurrency Simultaneous Downloads",
+                        fontWeight = FontWeight.Bold,
+                        color = AccentCyan,
+                        fontSize = 15.sp
+                    )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { if (maxConcurrency > 1) onConcurrencyChanged(maxConcurrency - 1) },
+                            enabled = maxConcurrency > 1,
+                            shape = CircleShape,
+                            modifier = Modifier.size(38.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("-", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Box(
+                            modifier = Modifier.width(36.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "$maxConcurrency",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 16.sp
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = { if (maxConcurrency < 20) onConcurrencyChanged(maxConcurrency + 1) },
+                            enabled = maxConcurrency < 20,
+                            shape = CircleShape,
+                            modifier = Modifier.size(38.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("+", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Smooth Slider from 1 to 20
+                Slider(
+                    value = maxConcurrency.toFloat(),
+                    onValueChange = { onConcurrencyChanged(it.toInt().coerceIn(1, 20)) },
+                    valueRange = 1f..20f,
+                    steps = 18,
+                    colors = SliderDefaults.colors(
+                        thumbColor = AccentCyan,
+                        activeTrackColor = AccentCyan
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Quick selection chips
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf(1, 2, 3, 5, 8, 10, 15, 20).forEach { count ->
                         val isSelected = maxConcurrency == count
                         FilterChip(
                             selected = isSelected,
                             onClick = { onConcurrencyChanged(count) },
-                            label = { Text("$count simultaneous") },
+                            label = { Text("$count") },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = AccentCyan,
                                 selectedLabelColor = MaterialTheme.colorScheme.surface

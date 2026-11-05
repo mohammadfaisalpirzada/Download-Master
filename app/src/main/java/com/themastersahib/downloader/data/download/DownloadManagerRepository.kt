@@ -25,14 +25,15 @@ import java.util.concurrent.TimeUnit
 
 class DownloadManagerRepository(private val context: Context) {
 
+    private val prefs = context.getSharedPreferences("dm_download_settings", Context.MODE_PRIVATE)
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
-    // Concurrency control: User selectable (1, 2, 3, 5)
-    private val _maxConcurrency = MutableStateFlow(2)
+    // Concurrency control: User selectable (1 to 20)
+    private val _maxConcurrency = MutableStateFlow(prefs.getInt("max_concurrency", 3))
     val maxConcurrency: StateFlow<Int> = _maxConcurrency.asStateFlow()
 
     private var semaphore = Semaphore(_maxConcurrency.value)
@@ -43,15 +44,21 @@ class DownloadManagerRepository(private val context: Context) {
     private val runningJobs = ConcurrentHashMap<String, Job>()
 
     fun setMaxConcurrency(limit: Int) {
-        val safeLimit = limit.coerceIn(1, 10)
+        val safeLimit = limit.coerceIn(1, 20)
         _maxConcurrency.value = safeLimit
+        prefs.edit().putInt("max_concurrency", safeLimit).apply()
         semaphore = Semaphore(safeLimit)
     }
 
     fun startDownload(videoInfo: VideoInfo, format: DownloadFormat) {
         val taskId = UUID.randomUUID().toString()
-        val extension = if (format.isAudioOnly) "mp3" else "mp4"
-        val mimeType = if (format.isAudioOnly) "audio/mpeg" else "video/mp4"
+        val extension = if (format.extension.isNotEmpty()) format.extension else (if (format.isAudioOnly) "mp3" else "mp4")
+        val mimeType = when (extension.lowercase()) {
+            "m4a" -> "audio/mp4"
+            "mp3" -> "audio/mpeg"
+            "mp4" -> "video/mp4"
+            else -> if (format.isAudioOnly) "audio/mpeg" else "video/mp4"
+        }
 
         val newTask = DownloadTask(
             id = taskId,
@@ -106,9 +113,18 @@ class DownloadManagerRepository(private val context: Context) {
         }
 
         try {
+            val referer = when {
+                task.downloadUrl.contains("suno") || task.downloadUrl.contains("cloudfront.net") -> "https://suno.com/"
+                task.downloadUrl.contains("tiktok") -> "https://www.tiktok.com/"
+                task.downloadUrl.contains("instagram") -> "https://www.instagram.com/"
+                else -> "https://www.google.com/"
+            }
+
             val request = Request.Builder()
                 .url(task.downloadUrl)
-                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                .header("Accept", "*/*")
+                .header("Referer", referer)
                 .build()
 
             httpClient.newCall(request).execute().use { response ->
