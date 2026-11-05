@@ -357,6 +357,86 @@ fun HomeScreen(
             }
         }
 
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Suno AI Bulk Extractor Console Script Tool
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFFFF5500).copy(alpha = 0.08f)
+            )
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFF5500).copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MusicNote,
+                            contentDescription = null,
+                            tint = Color(0xFFFF5500),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Suno AI Bulk Extractor Script",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Copy script to extract all MP3 links from any Suno browser console",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Button(
+                    onClick = {
+                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        val clip = android.content.ClipData.newPlainText("Suno Extractor Script", SUNO_CONSOLE_SCRIPT)
+                        clipboard.setPrimaryClip(clip)
+                        android.widget.Toast.makeText(
+                            context,
+                            "Suno console script copied to clipboard. Run it in browser console on suno.com",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5500))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ContentPaste,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Copy Suno Console Script",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(20.dp))
 
         // Privacy Banner (Zero Login Highlight)
@@ -525,3 +605,46 @@ data class PlatformBadge(
     val detail: String,
     val color: Color
 )
+
+private const val SUNO_CONSOLE_SCRIPT = """(() => {
+  const songIds = new Set();
+  const directLinks = new Set();
+
+  document.querySelectorAll('a[href*="/song/"]').forEach(a => {
+    const m = a.href.match(/\/song\/([a-f0-9\-]{36})/i);
+    if (m) songIds.add(m[1]);
+  });
+
+  const html = document.documentElement.innerHTML;
+  const uuidMatches = html.match(/\/song\/([a-f0-9\-]{36})/gi) || [];
+  uuidMatches.forEach(str => {
+    const m = str.match(/[a-f0-9\-]{36}/i);
+    if (m) songIds.add(m[0]);
+  });
+
+  const cdnMatches = html.match(/https?:\/\/cdn[0-9]?\.suno\.ai\/[a-f0-9\-]{36}\.mp3/gi) || [];
+  cdnMatches.forEach(url => directLinks.add(url));
+
+  document.querySelectorAll('audio, source').forEach(el => {
+    if (el.src && el.src.includes('.mp3') && !el.src.includes('sil-100')) {
+      directLinks.add(el.src);
+    }
+  });
+
+  songIds.forEach(id => {
+    directLinks.add(`https://cdn1.suno.ai/` + id + `.mp3`);
+  });
+
+  const allLinks = Array.from(directLinks);
+
+  if (allLinks.length === 0) {
+    alert("Is page par koi song detect nahi hua. Page ko scroll karein aur dobara chalayein.");
+    return;
+  }
+
+  const output = allLinks.join('\n');
+  copy(output);
+  console.log("=== SUNO DIRECT MP3 AUDIO LINKS ===");
+  console.log(output);
+  alert("Total " + allLinks.length + " direct MP3 links copy ho chuke hain.");
+})();"""
