@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -58,6 +59,7 @@ import com.themastersahib.downloader.ui.theme.AccentRose
 fun DownloadsScreen(
     tasks: List<DownloadTask>,
     onCancelTask: (String) -> Unit,
+    onRetryTask: (String) -> Unit,
     onPlayMedia: (Uri) -> Unit,
     onSaveToGoogleDrive: (Uri, Boolean) -> Unit
 ) {
@@ -96,6 +98,7 @@ fun DownloadsScreen(
             DownloadTaskItem(
                 task = task,
                 onCancel = { onCancelTask(task.id) },
+                onRetry = { onRetryTask(task.id) },
                 onPlay = {
                     task.localFilePath?.let { uriStr ->
                         onPlayMedia(Uri.parse(uriStr))
@@ -120,6 +123,7 @@ fun DownloadsScreen(
 fun DownloadTaskItem(
     task: DownloadTask,
     onCancel: () -> Unit,
+    onRetry: () -> Unit,
     onPlay: () -> Unit,
     onSaveToGoogleDrive: () -> Unit
 ) {
@@ -296,19 +300,48 @@ fun DownloadTaskItem(
                 }
 
                 TaskStatus.FAILED -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Error,
-                            contentDescription = null,
-                            tint = AccentRose,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = task.errorMessage ?: stringResource(R.string.download_failed),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = AccentRose
-                        )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Error,
+                                contentDescription = null,
+                                tint = AccentRose,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = task.errorMessage ?: stringResource(R.string.download_failed),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = AccentRose,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Retry Button in Task Item Menu
+                        Button(
+                            onClick = onRetry,
+                            modifier = Modifier.height(34.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "Retry", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
 

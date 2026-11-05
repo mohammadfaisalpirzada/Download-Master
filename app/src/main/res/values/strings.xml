@@ -7,10 +7,10 @@
     <string name="tab_gallery">Saved</string>
     <string name="tab_settings">Settings</string>
 
-    <string name="paste_hint">Paste any video link here (YouTube, Facebook, TikTok, Instagram, X, or any website...)</string>
+    <string name="paste_hint">Paste media or song link here (Suno AI, YouTube, TikTok, Facebook, Instagram, X, or any website...)</string>
     <string name="btn_paste">Paste</string>
-    <string name="btn_fetch">Fetch Video</string>
-    <string name="fetching_info">Analyzing video link...</string>
+    <string name="btn_fetch">Fetch Media</string>
+    <string name="fetching_info">Analyzing media link...</string>
     <string name="error_invalid_url">Please enter a valid video link.</string>
     <string name="error_unsupported_url">This platform is currently not recognized.</string>
     <string name="error_fetch_failed">Failed to extract video details. Please verify the link.</string>

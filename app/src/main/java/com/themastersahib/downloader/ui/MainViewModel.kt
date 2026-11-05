@@ -285,6 +285,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _detectedClipboardUrl.value = null
     }
 
+    fun retryTask(taskId: String) {
+        downloadRepo.retryTask(taskId)
+    }
+
     fun dismissFormatSheet() {
         _fetchState.value = FetchState.Idle
     }

@@ -204,6 +204,7 @@ class MainActivity : ComponentActivity() {
                             Screen.Downloads -> DownloadsScreen(
                                 tasks = activeTasks,
                                 onCancelTask = { viewModel.cancelTask(it) },
+                                onRetryTask = { viewModel.retryTask(it) },
                                 onPlayMedia = { activePlayerUri = it },
                                 onSaveToGoogleDrive = { uri, isAudio ->
                                     if (googleUser != null) {

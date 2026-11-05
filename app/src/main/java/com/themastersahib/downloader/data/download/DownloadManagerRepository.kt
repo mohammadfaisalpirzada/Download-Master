@@ -20,6 +20,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.InputStream
 import java.util.UUID
+import java.util.regex.Pattern
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
@@ -80,6 +81,55 @@ class DownloadManagerRepository(private val context: Context) {
                 updateTask(taskId) { it.copy(status = TaskStatus.DOWNLOADING) }
                 startForegroundServiceNotification(newTask.title, 0)
                 runDownload(taskId, newTask, extension, mimeType)
+            } finally {
+                semaphore.release()
+                checkStopForeground()
+            }
+        }
+        runningJobs[taskId] = job
+    }
+
+    fun retryTask(taskId: String) {
+        val task = _tasks.value.find { it.id == taskId } ?: return
+
+        // Auto-repair old Suno MP3 URLs that return 403 to the working CloudFront audio stream
+        var downloadUrl = task.downloadUrl
+        var isAudio = task.isAudioOnly
+        var extension = if (isAudio) "m4a" else "mp4"
+
+        if (downloadUrl.contains("cdn1.suno.ai") && downloadUrl.endsWith(".mp3")) {
+            val uuidMatcher = Pattern.compile("([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})").matcher(downloadUrl)
+            if (uuidMatcher.find()) {
+                val uuid = uuidMatcher.group(1)
+                downloadUrl = "https://d2lwuy8qc234o3.cloudfront.net/1/clip/$uuid.m4a"
+                extension = "m4a"
+            }
+        }
+
+        val mimeType = when (extension.lowercase()) {
+            "m4a" -> "audio/mp4"
+            "mp3" -> "audio/mpeg"
+            "mp4" -> "video/mp4"
+            else -> if (isAudio) "audio/mpeg" else "video/mp4"
+        }
+
+        val updatedTask = task.copy(
+            downloadUrl = downloadUrl,
+            status = TaskStatus.PENDING,
+            errorMessage = null,
+            progress = 0,
+            downloadedBytes = 0L,
+            speedBps = 0L
+        )
+
+        updateTask(taskId) { updatedTask }
+
+        val job = scope.launch {
+            semaphore.acquire()
+            try {
+                updateTask(taskId) { it.copy(status = TaskStatus.DOWNLOADING) }
+                startForegroundServiceNotification(updatedTask.title, 0)
+                runDownload(taskId, updatedTask, extension, mimeType)
             } finally {
                 semaphore.release()
                 checkStopForeground()

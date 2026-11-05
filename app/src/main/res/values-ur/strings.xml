@@ -7,10 +7,10 @@
     <string name="tab_gallery">محفوظ شدہ</string>
     <string name="tab_settings">ترتیبات</string>
 
-    <string name="paste_hint">کسی بھی ویڈیو کا لنک یہاں پیسٹ کریں (یوٹیوب، فیس بک، ٹک ٹاک، یا کوئی بھی ویب سائٹ...)</string>
+    <string name="paste_hint">کسی بھی ویڈیو، گانے یا میڈیا کا لنک یہاں پیسٹ کریں (سنُو اے آئی، یوٹیوب، ٹک ٹاک...)</string>
     <string name="btn_paste">پیسٹ کریں</string>
-    <string name="btn_fetch">تفصیلات لائیں</string>
-    <string name="fetching_info">ویڈیو لنک کی جانچ جاری ہے...</string>
+    <string name="btn_fetch">میڈیا حاصل کریں</string>
+    <string name="fetching_info">میڈیا لنک کی جانچ جاری ہے...</string>
     <string name="error_invalid_url">برائے مہربانی درست ویڈیو لنک درج کریں۔</string>
     <string name="error_unsupported_url">اس پلیٹ فارم کی معاونت فی الوقت دستیاب نہیں۔</string>
     <string name="error_fetch_failed">ویڈیو تفصیلات حاصل نہ ہو سکیں۔ لنک کی تصدیق کریں۔</string>

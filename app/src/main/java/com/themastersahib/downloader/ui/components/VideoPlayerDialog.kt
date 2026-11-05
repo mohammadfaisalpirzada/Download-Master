@@ -1,15 +1,19 @@
 package com.themastersahib.downloader.ui.components
 
+import android.content.Intent
 import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
@@ -68,19 +72,49 @@ fun VideoPlayerDialog(
                 modifier = Modifier.fillMaxSize()
             )
 
-            IconButton(
-                onClick = onDismiss,
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
-                    .size(40.dp)
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Close Player",
-                    tint = Color.White
-                )
+                // Direct Share Button (Share while playing)
+                IconButton(
+                    onClick = {
+                        val uriStr = mediaUri.toString()
+                        val isAudio = uriStr.endsWith(".mp3", ignoreCase = true) || uriStr.endsWith(".m4a", ignoreCase = true)
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = if (isAudio) "audio/*" else "video/*"
+                            putExtra(Intent.EXTRA_STREAM, mediaUri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share Media"))
+                    },
+                    modifier = Modifier
+                        .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                        .size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Share",
+                        tint = Color.White
+                    )
+                }
+
+                // Close Button
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                        .size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close Player",
+                        tint = Color.White
+                    )
+                }
             }
         }
     }
