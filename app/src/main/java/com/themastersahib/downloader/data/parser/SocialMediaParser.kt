@@ -10,6 +10,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.net.URL
 import java.net.URLDecoder
 import java.util.regex.Pattern
 
@@ -21,7 +22,6 @@ class SocialMediaParser(private val client: OkHttpClient) {
     )
 
     suspend fun parseFacebook(url: String): VideoInfo? = withContext(Dispatchers.IO) {
-        // Strategy 1: Direct HTML extraction for Facebook public videos
         try {
             val mobileUrl = url.replace("www.facebook.com", "m.facebook.com")
             val request = Request.Builder()
@@ -35,7 +35,6 @@ class SocialMediaParser(private val client: OkHttpClient) {
                     val html = response.body?.string() ?: ""
                     val formats = mutableListOf<DownloadFormat>()
 
-                    // Look for HD and SD URLs in page script
                     val hdPattern = Pattern.compile("playable_url_quality_hd[\":\\s]+([^\",;\\s]+)")
                     val sdPattern = Pattern.compile("playable_url[\":\\s]+([^\",;\\s]+)")
 
@@ -73,7 +72,6 @@ class SocialMediaParser(private val client: OkHttpClient) {
                     }
 
                     if (formats.isNotEmpty()) {
-                        // Extract Title
                         val titlePattern = Pattern.compile("<title>([^<]+)</title>")
                         val titleMatcher = titlePattern.matcher(html)
                         val title = if (titleMatcher.find()) {
@@ -95,7 +93,7 @@ class SocialMediaParser(private val client: OkHttpClient) {
                 }
             }
         } catch (e: Exception) {
-            // Fallback to cobalt
+            // Fallback
         }
 
         return@withContext parseViaCobalt(url, SocialPlatform.FACEBOOK)
@@ -109,8 +107,162 @@ class SocialMediaParser(private val client: OkHttpClient) {
         return@withContext parseViaCobalt(url, SocialPlatform.TWITTER)
     }
 
+    /**
+     * Universal Web Extractor: Extracts videos from ANY unknown website or direct media URL.
+     */
     suspend fun parseGeneric(url: String): VideoInfo? = withContext(Dispatchers.IO) {
+        val cleanUrl = url.trim()
+
+        // 1. Check if direct media file link (.mp4, .webm, .mkv, .mov, .m4v, .m3u8, .mp3)
+        val lower = cleanUrl.lowercase()
+        if (lower.endsWith(".mp4") || lower.endsWith(".webm") || lower.endsWith(".mkv") ||
+            lower.endsWith(".mov") || lower.endsWith(".m4v") || lower.contains(".mp4?") ||
+            lower.contains(".webm?")
+        ) {
+            val fileName = cleanUrl.substringAfterLast("/").substringBefore("?").ifEmpty { "Web Video" }
+            val formats = listOf(
+                DownloadFormat(
+                    id = "direct_video_hd",
+                    label = "Original Video (Direct Link)",
+                    resolution = "HD",
+                    downloadUrl = cleanUrl,
+                    isAudioOnly = false,
+                    extension = "mp4",
+                    note = "Direct Web Video Stream"
+                ),
+                DownloadFormat(
+                    id = "direct_audio",
+                    label = "Audio Only (MP3)",
+                    resolution = "Audio",
+                    downloadUrl = cleanUrl,
+                    isAudioOnly = true,
+                    extension = "mp3",
+                    note = "Audio Track"
+                )
+            )
+            return@withContext VideoInfo(
+                originalUrl = url,
+                title = fileName,
+                thumbnail = null,
+                author = "Web Video",
+                durationSeconds = 0L,
+                platform = SocialPlatform.OTHER,
+                formats = formats
+            )
+        }
+
+        // 2. Universal HTML5 & OpenGraph Scraper for any web page
+        try {
+            val request = Request.Builder()
+                .url(cleanUrl)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 Chrome/124.0.0.0")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val html = response.body?.string() ?: ""
+
+                    // Video candidates from OpenGraph and HTML5 tags
+                    val videoUrlCandidates = mutableListOf<String>()
+
+                    val ogVideoPattern = Pattern.compile("<meta\\s+(?:property|name)=[\"'](?:og:video|og:video:url|og:video:secure_url|twitter:player:stream)[\"']\\s+content=[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE)
+                    val ogMatcher = ogVideoPattern.matcher(html)
+                    while (ogMatcher.find()) {
+                        ogMatcher.group(1)?.let { videoUrlCandidates.add(it) }
+                    }
+
+                    // HTML5 video tag src
+                    val videoTagPattern = Pattern.compile("<video[^>]+src=[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE)
+                    val vMatcher = videoTagPattern.matcher(html)
+                    while (vMatcher.find()) {
+                        vMatcher.group(1)?.let { videoUrlCandidates.add(it) }
+                    }
+
+                    // Source tag inside video
+                    val sourceTagPattern = Pattern.compile("<source[^>]+src=[\"']([^\"']+)[\"'][^>]+type=[\"']video/[^\"']+[\"']", Pattern.CASE_INSENSITIVE)
+                    val sMatcher = sourceTagPattern.matcher(html)
+                    while (sMatcher.find()) {
+                        sMatcher.group(1)?.let { videoUrlCandidates.add(it) }
+                    }
+
+                    // Extract Title and Thumbnail
+                    val titlePattern = Pattern.compile("<title>([^<]+)</title>", Pattern.CASE_INSENSITIVE)
+                    val tMatcher = titlePattern.matcher(html)
+                    val pageTitle = if (tMatcher.find()) tMatcher.group(1)?.trim() ?: "Web Video" else "Web Video"
+
+                    val ogImagePattern = Pattern.compile("<meta\\s+(?:property|name)=[\"']og:image[\"']\\s+content=[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE)
+                    val imgMatcher = ogImagePattern.matcher(html)
+                    val thumbUrl = if (imgMatcher.find()) imgMatcher.group(1) else null
+
+                    if (videoUrlCandidates.isNotEmpty()) {
+                        val formats = mutableListOf<DownloadFormat>()
+                        var index = 1
+                        for (cand in videoUrlCandidates.distinct()) {
+                            val absoluteVideoUrl = resolveAbsoluteUrl(cleanUrl, cand)
+                            if (absoluteVideoUrl.startsWith("http")) {
+                                formats.add(
+                                    DownloadFormat(
+                                        id = "universal_v_$index",
+                                        label = if (index == 1) "HD Video (Web Source)" else "Video Stream #$index",
+                                        resolution = "HD",
+                                        downloadUrl = absoluteVideoUrl,
+                                        isAudioOnly = false,
+                                        extension = "mp4",
+                                        note = "Extracted from Web Player"
+                                    )
+                                )
+                                index++
+                            }
+                        }
+
+                        if (formats.isNotEmpty()) {
+                            // Add Audio format
+                            formats.add(
+                                DownloadFormat(
+                                    id = "universal_audio",
+                                    label = "Audio Only (MP3)",
+                                    resolution = "Audio",
+                                    downloadUrl = formats[0].downloadUrl,
+                                    isAudioOnly = true,
+                                    extension = "mp3",
+                                    note = "Extracted Audio Track"
+                                )
+                            )
+
+                            return@withContext VideoInfo(
+                                originalUrl = url,
+                                title = pageTitle,
+                                thumbnail = thumbUrl,
+                                author = URL(cleanUrl).host.replace("www.", ""),
+                                durationSeconds = 0L,
+                                platform = SocialPlatform.OTHER,
+                                formats = formats
+                            )
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // Try fallback
+        }
+
+        // 3. Fallback to Cobalt Universal
         return@withContext parseViaCobalt(url, SocialPlatform.OTHER)
+    }
+
+    private fun resolveAbsoluteUrl(baseUrl: String, candidate: String): String {
+        return try {
+            if (candidate.startsWith("http://") || candidate.startsWith("https://")) {
+                candidate
+            } else if (candidate.startsWith("//")) {
+                "https:$candidate"
+            } else {
+                val base = URL(baseUrl)
+                URL(base, candidate).toString()
+            }
+        } catch (e: Exception) {
+            candidate
+        }
     }
 
     private suspend fun parseViaCobalt(url: String, platform: SocialPlatform): VideoInfo? = withContext(Dispatchers.IO) {
@@ -136,12 +288,12 @@ class SocialMediaParser(private val client: OkHttpClient) {
                         val formats = mutableListOf(
                             DownloadFormat(
                                 id = "${platform.name.lowercase()}_video_hd",
-                                label = "HD Video (Best Quality)",
+                                label = "HD Video (Original Quality)",
                                 resolution = "HD",
                                 downloadUrl = downloadUrl,
                                 isAudioOnly = false,
                                 extension = "mp4",
-                                note = "Original Quality Video"
+                                note = "High Definition Video"
                             ),
                             DownloadFormat(
                                 id = "${platform.name.lowercase()}_audio",
@@ -166,7 +318,7 @@ class SocialMediaParser(private val client: OkHttpClient) {
                     }
                 }
             } catch (e: Exception) {
-                // Try next host
+                // Next host
             }
         }
         null

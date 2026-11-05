@@ -1,12 +1,13 @@
 <resources>
-    <string name="app_name">ماسٹر ڈاؤنلوڈر</string>
+    <string name="app_name">ڈاؤنلوڈ ماسٹر</string>
     <string name="app_tagline">تیز رفتار اور محفوظ ویڈیو ڈاؤنلوڈر</string>
+    <string name="brand_series">دی ماسٹر صاحب ایجوکیشنل اینڈ سافٹ ویئر سیریز</string>
     <string name="tab_home">ڈاؤنلوڈر</string>
     <string name="tab_downloads">کام</string>
     <string name="tab_gallery">محفوظ شدہ</string>
     <string name="tab_settings">ترتیبات</string>
 
-    <string name="paste_hint">ویڈیو لنک یہاں چسپاں کریں (یوٹیوب، فیس بک، ٹک ٹاک، انسٹاگرام...)</string>
+    <string name="paste_hint">کسی بھی ویڈیو کا لنک یہاں پیسٹ کریں (یوٹیوب، فیس بک، ٹک ٹاک، یا کوئی بھی ویب سائٹ...)</string>
     <string name="btn_paste">پیسٹ کریں</string>
     <string name="btn_fetch">تفصیلات لائیں</string>
     <string name="fetching_info">ویڈیو لنک کی جانچ جاری ہے...</string>
@@ -27,12 +28,14 @@
     <string name="status_downloading">ڈاؤنلوڈ جاری ہے</string>
     <string name="status_completed">مکمل</string>
     <string name="status_paused">روکا گیا</string>
+    <string name="status_queued">قطار میں ہے</string>
 
     <string name="no_downloads">فی الوقت کوئی فعال ڈاؤنلوڈ موجود نہیں۔</string>
     <string name="no_saved_media">ابھی تک کوئی میڈیا محفوظ نہیں کیا گیا۔</string>
     <string name="btn_open">چلائیں</string>
     <string name="btn_share">شیئر کریں</string>
     <string name="btn_delete">حذف کریں</string>
+    <string name="btn_gdrive">گوگل ڈرائیو پر محفوظ کریں</string>
 
     <string name="supported_platforms">معاونت شدہ پلیٹ فارمز</string>
     <string name="platform_youtube">یوٹیوب</string>
@@ -40,8 +43,27 @@
     <string name="platform_tiktok">ٹک ٹاک</string>
     <string name="platform_instagram">انسٹاگرام</string>
     <string name="platform_twitter">ٹوئٹر / ایکس</string>
-    <string name="platform_other">دیگر ذرائع</string>
+    <string name="platform_other">کوئی بھی ویب سائٹ / ویڈیو لنک</string>
 
     <string name="privacy_title">سو فیصد نجی اور محفوظ</string>
     <string name="privacy_desc">کسی قسم کے لاگ ان یا اکاؤنٹ کی ضرورت نہیں۔ آپ کی سرگرمی اور معلومات مکمل طور پر آپ کے فون تک محدود ہیں۔</string>
+
+    <!-- Clipboard Detection -->
+    <string name="clipboard_detected_title">کاپی شدہ لنک ملا ہے</string>
+    <string name="btn_download_clipboard">ویڈیو ڈاؤنلوڈ کریں</string>
+    <string name="btn_dismiss">رد کریں</string>
+
+    <!-- Master Sahib Copyright & Links -->
+    <string name="copyright_notice">جملہ حقوق محفوظ ہیں © دی ماسٹر صاحب سیریز</string>
+    <string name="official_website">سرکاری ویب سائٹ: www.mastersahib.com</string>
+    <string name="youtube_channel">یوٹیوب چینل: @maastersahib</string>
+    <string name="contact_info">رابطہ و فیڈ بیک: contact@mastersahib.com</string>
+    <string name="visit_website">ویب سائٹ کھولیں</string>
+    <string name="visit_youtube">یوٹیوب پر دیکھیں</string>
+
+    <!-- Concurrent Downloads Settings -->
+    <string name="setting_concurrency_title">ایک وقت میں ڈاؤنلوڈز کی تعداد</string>
+    <string name="setting_concurrency_desc">ایک وقت میں زیادہ سے زیادہ بیک وقت ڈاؤنلوڈز کی حد</string>
+    <string name="setting_gdrive_title">گوگل ڈرائیو معاونت</string>
+    <string name="setting_gdrive_desc">مکمل شدہ فائلز کو براہ راست اپنے گوگل ڈرائیو پر منتقل کریں</string>
 </resources>

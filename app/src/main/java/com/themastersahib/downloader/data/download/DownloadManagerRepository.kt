@@ -2,20 +2,20 @@ package com.themastersahib.downloader.data.download
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import com.themastersahib.downloader.data.model.DownloadFormat
 import com.themastersahib.downloader.data.model.DownloadTask
-import com.themastersahib.downloader.data.model.SocialPlatform
 import com.themastersahib.downloader.data.model.TaskStatus
 import com.themastersahib.downloader.data.model.VideoInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.InputStream
@@ -31,10 +31,22 @@ class DownloadManagerRepository(private val context: Context) {
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
+    // Concurrency control: User selectable (1, 2, 3, 5)
+    private val _maxConcurrency = MutableStateFlow(2)
+    val maxConcurrency: StateFlow<Int> = _maxConcurrency.asStateFlow()
+
+    private var semaphore = Semaphore(_maxConcurrency.value)
+
     private val _tasks = MutableStateFlow<List<DownloadTask>>(emptyList())
     val tasks: StateFlow<List<DownloadTask>> = _tasks.asStateFlow()
 
     private val runningJobs = ConcurrentHashMap<String, Job>()
+
+    fun setMaxConcurrency(limit: Int) {
+        val safeLimit = limit.coerceIn(1, 10)
+        _maxConcurrency.value = safeLimit
+        semaphore = Semaphore(safeLimit)
+    }
 
     fun startDownload(videoInfo: VideoInfo, format: DownloadFormat) {
         val taskId = UUID.randomUUID().toString()
@@ -50,14 +62,21 @@ class DownloadManagerRepository(private val context: Context) {
             formatLabel = format.label,
             isAudioOnly = format.isAudioOnly,
             totalBytes = format.estimatedSizeBytes,
-            status = TaskStatus.DOWNLOADING
+            status = TaskStatus.PENDING
         )
 
         _tasks.update { listOf(newTask) + it }
-        startForegroundServiceNotification(newTask.title, 0)
 
         val job = scope.launch {
-            runDownload(taskId, newTask, extension, mimeType)
+            semaphore.acquire()
+            try {
+                updateTask(taskId) { it.copy(status = TaskStatus.DOWNLOADING) }
+                startForegroundServiceNotification(newTask.title, 0)
+                runDownload(taskId, newTask, extension, mimeType)
+            } finally {
+                semaphore.release()
+                checkStopForeground()
+            }
         }
         runningJobs[taskId] = job
     }
@@ -83,7 +102,6 @@ class DownloadManagerRepository(private val context: Context) {
                     errorMessage = "Failed to create destination storage file"
                 )
             }
-            stopForegroundServiceNotification()
             return
         }
 
@@ -101,7 +119,6 @@ class DownloadManagerRepository(private val context: Context) {
                             errorMessage = "Server returned error: ${response.code}"
                         )
                     }
-                    stopForegroundServiceNotification()
                     return
                 }
 
@@ -168,9 +185,6 @@ class DownloadManagerRepository(private val context: Context) {
             }
         } finally {
             runningJobs.remove(taskId)
-            if (runningJobs.isEmpty()) {
-                stopForegroundServiceNotification()
-            }
         }
     }
 
@@ -180,7 +194,12 @@ class DownloadManagerRepository(private val context: Context) {
         _tasks.update { list ->
             list.filterNot { it.id == taskId }
         }
-        if (runningJobs.isEmpty()) {
+        checkStopForeground()
+    }
+
+    private fun checkStopForeground() {
+        val hasActive = _tasks.value.any { it.status == TaskStatus.DOWNLOADING }
+        if (!hasActive) {
             stopForegroundServiceNotification()
         }
     }
@@ -200,7 +219,7 @@ class DownloadManagerRepository(private val context: Context) {
             }
             context.startService(intent)
         } catch (e: Exception) {
-            // Background start restriction handling
+            // Handled
         }
     }
 
@@ -211,7 +230,7 @@ class DownloadManagerRepository(private val context: Context) {
             }
             context.startService(intent)
         } catch (e: Exception) {
-            // Ignored
+            // Handled
         }
     }
 }

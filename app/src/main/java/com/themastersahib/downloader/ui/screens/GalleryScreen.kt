@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -49,7 +50,8 @@ import com.themastersahib.downloader.ui.theme.AccentEmerald
 fun GalleryScreen(
     savedFiles: List<FileItem>,
     onRefresh: () -> Unit,
-    onPlayMedia: (Uri) -> Unit
+    onPlayMedia: (Uri) -> Unit,
+    onSaveToGoogleDrive: (Uri, Boolean) -> Unit
 ) {
     val context = LocalContext.current
 
@@ -119,9 +121,17 @@ fun GalleryScreen(
                                 putExtra(Intent.EXTRA_STREAM, file.contentUri)
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share Video"))
+                            context.startActivity(Intent.createChooser(shareIntent, "Share Media"))
+                        },
+                        onGoogleDrive = {
+                            onSaveToGoogleDrive(file.contentUri, file.isAudio)
                         }
                     )
+                }
+
+                // Bottom spacer to prevent cut-off
+                item {
+                    Spacer(modifier = Modifier.height(48.dp))
                 }
             }
         }
@@ -132,7 +142,8 @@ fun GalleryScreen(
 fun SavedMediaRow(
     item: FileItem,
     onPlay: () -> Unit,
-    onShare: () -> Unit
+    onShare: () -> Unit,
+    onGoogleDrive: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -163,7 +174,7 @@ fun SavedMediaRow(
                 )
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -180,10 +191,10 @@ fun SavedMediaRow(
                 )
             }
 
-            IconButton(onClick = onPlay) {
+            IconButton(onClick = onGoogleDrive) {
                 Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "Play",
+                    imageVector = Icons.Default.CloudUpload,
+                    contentDescription = "Save to Google Drive",
                     tint = AccentCyan
                 )
             }
@@ -193,6 +204,14 @@ fun SavedMediaRow(
                     imageVector = Icons.Default.Share,
                     contentDescription = "Share",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            IconButton(onClick = onPlay) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "Play",
+                    tint = AccentEmerald
                 )
             }
         }

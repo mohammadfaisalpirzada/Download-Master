@@ -15,13 +15,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
@@ -32,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -56,7 +58,8 @@ import com.themastersahib.downloader.ui.theme.AccentRose
 fun DownloadsScreen(
     tasks: List<DownloadTask>,
     onCancelTask: (String) -> Unit,
-    onPlayMedia: (Uri) -> Unit
+    onPlayMedia: (Uri) -> Unit,
+    onSaveToGoogleDrive: (Uri, Boolean) -> Unit
 ) {
     if (tasks.isEmpty()) {
         Box(
@@ -97,8 +100,18 @@ fun DownloadsScreen(
                     task.localFilePath?.let { uriStr ->
                         onPlayMedia(Uri.parse(uriStr))
                     }
+                },
+                onSaveToGoogleDrive = {
+                    task.localFilePath?.let { uriStr ->
+                        onSaveToGoogleDrive(Uri.parse(uriStr), task.isAudioOnly)
+                    }
                 }
             )
+        }
+
+        // Bottom spacer to prevent content cut-off
+        item {
+            Spacer(modifier = Modifier.height(48.dp))
         }
     }
 }
@@ -107,7 +120,8 @@ fun DownloadsScreen(
 fun DownloadTaskItem(
     task: DownloadTask,
     onCancel: () -> Unit,
-    onPlay: () -> Unit
+    onPlay: () -> Unit,
+    onSaveToGoogleDrive: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -163,7 +177,7 @@ fun DownloadTaskItem(
                     )
                 }
 
-                if (task.status == TaskStatus.DOWNLOADING) {
+                if (task.status == TaskStatus.DOWNLOADING || task.status == TaskStatus.PENDING) {
                     IconButton(onClick = onCancel) {
                         Icon(
                             imageVector = Icons.Default.Cancel,
@@ -177,6 +191,26 @@ fun DownloadTaskItem(
             Spacer(modifier = Modifier.height(10.dp))
 
             when (task.status) {
+                TaskStatus.PENDING -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.HourglassTop,
+                            contentDescription = null,
+                            tint = AccentCyan,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = stringResource(R.string.status_queued),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AccentCyan
+                        )
+                    }
+                }
+
                 TaskStatus.DOWNLOADING -> {
                     LinearProgressIndicator(
                         progress = { task.progress / 100f },
@@ -230,15 +264,33 @@ fun DownloadTaskItem(
                             )
                         }
 
-                        Button(
-                            onClick = onPlay,
-                            modifier = Modifier.height(36.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentEmerald)
-                        ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = stringResource(R.string.btn_open), fontSize = 12.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            // Google Drive 1-Click Upload
+                            OutlinedButton(
+                                onClick = onSaveToGoogleDrive,
+                                modifier = Modifier.height(36.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.CloudUpload,
+                                    contentDescription = null,
+                                    tint = AccentCyan,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = "Drive", fontSize = 11.sp, color = AccentCyan)
+                            }
+
+                            Button(
+                                onClick = onPlay,
+                                modifier = Modifier.height(36.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = AccentEmerald)
+                            ) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = stringResource(R.string.btn_open), fontSize = 12.sp)
+                            }
                         }
                     }
                 }

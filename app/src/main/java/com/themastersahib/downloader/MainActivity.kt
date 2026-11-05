@@ -6,8 +6,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
@@ -24,7 +27,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +69,8 @@ class MainActivity : ComponentActivity() {
                 val urlInput by viewModel.urlInput.collectAsState()
                 val activeTasks by viewModel.activeTasks.collectAsState()
                 val savedFiles by viewModel.savedFiles.collectAsState()
+                val detectedClipboardUrl by viewModel.detectedClipboardUrl.collectAsState()
+                val maxConcurrency by viewModel.maxConcurrency.collectAsState()
 
                 var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
                 var activePlayerUri by remember { mutableStateOf<Uri?>(null) }
@@ -101,7 +105,10 @@ class MainActivity : ComponentActivity() {
                         val downloadingCount = activeTasks.count { it.status == TaskStatus.DOWNLOADING }
                         val screens = listOf(Screen.Home, Screen.Downloads, Screen.Gallery, Screen.Settings)
 
-                        NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                        NavigationBar(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.navigationBarsPadding()
+                        ) {
                             screens.forEach { screen ->
                                 NavigationBarItem(
                                     selected = currentScreen.route == screen.route,
@@ -126,7 +133,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) { innerPadding ->
-                    androidx.compose.foundation.layout.Box(
+                    Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(innerPadding)
@@ -134,27 +141,52 @@ class MainActivity : ComponentActivity() {
                         when (currentScreen) {
                             Screen.Home -> HomeScreen(
                                 urlInput = urlInput,
+                                detectedClipboardUrl = detectedClipboardUrl,
                                 fetchState = fetchState,
                                 onUrlChanged = { viewModel.onUrlChanged(it) },
                                 onPasteClicked = { viewModel.pasteFromClipboard() },
-                                onFetchClicked = { viewModel.fetchVideoInfo() }
+                                onFetchClicked = { viewModel.fetchVideoInfo() },
+                                onAcceptClipboard = { viewModel.onAcceptClipboardPrompt() },
+                                onDismissClipboard = { viewModel.onDismissClipboardPrompt() }
                             )
                             Screen.Downloads -> DownloadsScreen(
                                 tasks = activeTasks,
                                 onCancelTask = { viewModel.cancelTask(it) },
-                                onPlayMedia = { activePlayerUri = it }
+                                onPlayMedia = { activePlayerUri = it },
+                                onSaveToGoogleDrive = { uri, isAudio ->
+                                    viewModel.saveToGoogleDrive(
+                                        this@MainActivity,
+                                        uri,
+                                        if (isAudio) "audio/mpeg" else "video/mp4"
+                                    )
+                                }
                             )
                             Screen.Gallery -> GalleryScreen(
                                 savedFiles = savedFiles,
                                 onRefresh = { viewModel.loadSavedFiles() },
-                                onPlayMedia = { activePlayerUri = it }
+                                onPlayMedia = { activePlayerUri = it },
+                                onSaveToGoogleDrive = { uri, isAudio ->
+                                    viewModel.saveToGoogleDrive(
+                                        this@MainActivity,
+                                        uri,
+                                        if (isAudio) "audio/mpeg" else "video/mp4"
+                                    )
+                                }
                             )
-                            Screen.Settings -> SettingsScreen()
+                            Screen.Settings -> SettingsScreen(
+                                maxConcurrency = maxConcurrency,
+                                onConcurrencyChanged = { viewModel.setMaxConcurrency(it) }
+                            )
                         }
                     }
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.checkClipboardForVideoLink()
     }
 
     override fun onNewIntent(intent: Intent) {

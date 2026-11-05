@@ -1,8 +1,9 @@
 package com.themastersahib.downloader.ui.screens
 
-import androidx.compose.foundation.background
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,26 +14,32 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Subscriptions
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -43,7 +50,11 @@ import com.themastersahib.downloader.ui.theme.AccentEmerald
 import com.themastersahib.downloader.ui.theme.PrimaryBlue
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(
+    maxConcurrency: Int,
+    onConcurrencyChanged: (Int) -> Unit
+) {
+    val context = LocalContext.current
     val scrollState = rememberScrollState()
 
     Column(
@@ -59,7 +70,7 @@ fun SettingsScreen() {
             fontWeight = FontWeight.Bold
         )
 
-        // Privacy & Security Card
+        // Concurrent Downloads Limit Setting
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
@@ -70,31 +81,191 @@ fun SettingsScreen() {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.Security,
+                        imageVector = Icons.Default.Speed,
+                        contentDescription = null,
+                        tint = AccentCyan,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = stringResource(R.string.setting_concurrency_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = stringResource(R.string.setting_concurrency_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(1, 2, 3, 5).forEach { count ->
+                        val isSelected = maxConcurrency == count
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onConcurrencyChanged(count) },
+                            label = { Text("$count simultaneous") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = AccentCyan,
+                                selectedLabelColor = MaterialTheme.colorScheme.surface
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // Google Drive Integration Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.CloudUpload,
                         contentDescription = null,
                         tint = AccentEmerald,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Zero-Login Security Policy",
+                        text = stringResource(R.string.setting_gdrive_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = "Download Master does not require any account creation, login credentials, cookies, or personal authorization tokens. All video parsing is executed through secure, privacy-preserving client protocols.",
+                    text = stringResource(R.string.setting_gdrive_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 20.sp
+                    lineHeight = 18.sp
                 )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CloudDone,
+                        contentDescription = null,
+                        tint = AccentEmerald,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "1-Click 'Drive' button enabled on all downloaded media",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AccentEmerald,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
 
-        // Storage Location Card
+        // Official Master Sahib Developer & Copyright Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = PrimaryBlue.copy(alpha = 0.08f)
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "The Master Sahib Series",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = AccentCyan
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = stringResource(R.string.copyright_notice),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Website Button
+                OutlinedButton(
+                    onClick = {
+                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.mastersahib.com"))
+                        context.startActivity(browserIntent)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Visit www.mastersahib.com", fontWeight = FontWeight.SemiBold)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // YouTube Button
+                Button(
+                    onClick = {
+                        val ytIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/@maastersahib"))
+                        context.startActivity(ytIntent)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                ) {
+                    Icon(Icons.Default.Subscriptions, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Subscribe @maastersahib on YouTube", fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Contact Email Link
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
+                                data = Uri.parse("mailto:contact@mastersahib.com")
+                                putExtra(Intent.EXTRA_SUBJECT, "Download Master Support & Inquiry")
+                            }
+                            context.startActivity(emailIntent)
+                        }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Mail, contentDescription = null, tint = AccentCyan, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "contact@mastersahib.com",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AccentCyan,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+
+        // Storage Folder Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
@@ -155,12 +326,15 @@ fun SettingsScreen() {
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
-                    text = "Version: 1.0.0 (Release)\nDeveloped for: The Master Sahib Series\nDesigned for Android 8.0 up to Android 15 with Scoped Storage compliance.",
+                    text = "Version: 1.0.3\nDeveloped by: The Master Sahib Series\nDesigned for Android 8.0 up to Android 15 with Scoped Storage and Google Drive cloud export.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 20.sp
                 )
             }
         }
+
+        // Bottom extra spacing so content is never cut off
+        Spacer(modifier = Modifier.height(48.dp))
     }
 }
