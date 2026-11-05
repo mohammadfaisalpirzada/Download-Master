@@ -3,9 +3,10 @@ package com.themastersahib.downloader.ui.screens
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -414,21 +415,30 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // Quick selection chips
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    listOf(1, 2, 3, 5, 8, 10, 15, 20).forEach { count ->
-                        val isSelected = maxConcurrency == count
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { onConcurrencyChanged(count) },
-                            label = { Text("$count") },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = AccentCyan,
-                                selectedLabelColor = MaterialTheme.colorScheme.surface
-                            )
-                        )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(1, 2, 3, 5, 8, 10, 15, 20).chunked(4).forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            row.forEach { count ->
+                                val isSelected = maxConcurrency == count
+                                FilterChip(
+                                    modifier = Modifier.weight(1f),
+                                    selected = isSelected,
+                                    onClick = { onConcurrencyChanged(count) },
+                                    label = {
+                                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                            Text("$count", fontWeight = FontWeight.Bold)
+                                        }
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = AccentCyan,
+                                        selectedLabelColor = MaterialTheme.colorScheme.surface
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
             }
