@@ -1,0 +1,47 @@
+<resources>
+    <string name="app_name">ماسٹر ڈاؤنلوڈر</string>
+    <string name="app_tagline">تیز رفتار اور محفوظ ویڈیو ڈاؤنلوڈر</string>
+    <string name="tab_home">ڈاؤنلوڈر</string>
+    <string name="tab_downloads">کام</string>
+    <string name="tab_gallery">محفوظ شدہ</string>
+    <string name="tab_settings">ترتیبات</string>
+
+    <string name="paste_hint">ویڈیو لنک یہاں چسپاں کریں (یوٹیوب، فیس بک، ٹک ٹاک، انسٹاگرام...)</string>
+    <string name="btn_paste">پیسٹ کریں</string>
+    <string name="btn_fetch">تفصیلات لائیں</string>
+    <string name="fetching_info">ویڈیو لنک کی جانچ جاری ہے...</string>
+    <string name="error_invalid_url">برائے مہربانی درست ویڈیو لنک درج کریں۔</string>
+    <string name="error_unsupported_url">اس پلیٹ فارم کی معاونت فی الوقت دستیاب نہیں۔</string>
+    <string name="error_fetch_failed">ویڈیو تفصیلات حاصل نہ ہو سکیں۔ لنک کی تصدیق کریں۔</string>
+
+    <string name="dialog_download_options">ڈاؤنلوڈ کے اختیارات</string>
+    <string name="section_video_resolutions">ویڈیو کوالٹی اور ریزولوشن</string>
+    <string name="section_audio_only">صرف آڈیو (MP3)</string>
+    <string name="label_no_watermark">بغیر واٹر مارک (ایچ ڈی)</string>
+    <string name="label_audio">آڈیو فائل</string>
+    <string name="btn_start_download">ڈاؤنلوڈ شروع کریں</string>
+
+    <string name="download_started">ڈاؤنلوڈ پس منظر میں شروع ہو گئی ہے</string>
+    <string name="download_complete">ڈاؤنلوڈ کامیابی سے مکمل ہو گئی</string>
+    <string name="download_failed">ڈاؤنلوڈ میں مسئلہ پیش آیا</string>
+    <string name="status_downloading">ڈاؤنلوڈ جاری ہے</string>
+    <string name="status_completed">مکمل</string>
+    <string name="status_paused">روکا گیا</string>
+
+    <string name="no_downloads">فی الوقت کوئی فعال ڈاؤنلوڈ موجود نہیں۔</string>
+    <string name="no_saved_media">ابھی تک کوئی میڈیا محفوظ نہیں کیا گیا۔</string>
+    <string name="btn_open">چلائیں</string>
+    <string name="btn_share">شیئر کریں</string>
+    <string name="btn_delete">حذف کریں</string>
+
+    <string name="supported_platforms">معاونت شدہ پلیٹ فارمز</string>
+    <string name="platform_youtube">یوٹیوب</string>
+    <string name="platform_facebook">فیس بک</string>
+    <string name="platform_tiktok">ٹک ٹاک</string>
+    <string name="platform_instagram">انسٹاگرام</string>
+    <string name="platform_twitter">ٹوئٹر / ایکس</string>
+    <string name="platform_other">دیگر ذرائع</string>
+
+    <string name="privacy_title">سو فیصد نجی اور محفوظ</string>
+    <string name="privacy_desc">کسی قسم کے لاگ ان یا اکاؤنٹ کی ضرورت نہیں۔ آپ کی سرگرمی اور معلومات مکمل طور پر آپ کے فون تک محدود ہیں۔</string>
+</resources>

@@ -1,0 +1,25 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer Ring / Circle -->
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="3.5"
+        android:pathData="M54,18 A36,36 0 1,1 53.9,18" />
+    <!-- Down Arrow Stem -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M51,32h6v24h-6z" />
+    <!-- Down Arrow Head -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M42,54l12,14l12,-14h-24z" />
+    <!-- Base Tray -->
+    <path
+        android:strokeColor="#0D9488"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M38,74h32" />
+</vector>

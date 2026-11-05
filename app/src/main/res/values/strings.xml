@@ -1,0 +1,47 @@
+<resources>
+    <string name="app_name">Download Master</string>
+    <string name="app_tagline">Fast and Secure Video Downloader</string>
+    <string name="tab_home">Downloader</string>
+    <string name="tab_downloads">Tasks</string>
+    <string name="tab_gallery">Saved</string>
+    <string name="tab_settings">Settings</string>
+
+    <string name="paste_hint">Paste video link here (YouTube, Facebook, TikTok, Instagram, X...)</string>
+    <string name="btn_paste">Paste</string>
+    <string name="btn_fetch">Fetch Video</string>
+    <string name="fetching_info">Analyzing video link...</string>
+    <string name="error_invalid_url">Please enter a valid video link.</string>
+    <string name="error_unsupported_url">This platform is currently not recognized.</string>
+    <string name="error_fetch_failed">Failed to extract video details. Please verify the link.</string>
+
+    <string name="dialog_download_options">Download Options</string>
+    <string name="section_video_resolutions">Video Resolutions</string>
+    <string name="section_audio_only">Audio Only (MP3)</string>
+    <string name="label_no_watermark">Without Watermark (HD)</string>
+    <string name="label_audio">Audio Extracted</string>
+    <string name="btn_start_download">Download Now</string>
+
+    <string name="download_started">Download started in background</string>
+    <string name="download_complete">Download completed successfully</string>
+    <string name="download_failed">Download failed</string>
+    <string name="status_downloading">Downloading</string>
+    <string name="status_completed">Completed</string>
+    <string name="status_paused">Paused</string>
+
+    <string name="no_downloads">No active downloads</string>
+    <string name="no_saved_media">No downloaded media found yet</string>
+    <string name="btn_open">Play</string>
+    <string name="btn_share">Share</string>
+    <string name="btn_delete">Delete</string>
+
+    <string name="supported_platforms">Supported Platforms</string>
+    <string name="platform_youtube">YouTube</string>
+    <string name="platform_facebook">Facebook</string>
+    <string name="platform_tiktok">TikTok</string>
+    <string name="platform_instagram">Instagram</string>
+    <string name="platform_twitter">Twitter / X</string>
+    <string name="platform_other">Dailymotion &amp; Others</string>
+
+    <string name="privacy_title">100% Private and Secure</string>
+    <string name="privacy_desc">No user registration, no passwords, and no login required. Your activity stays entirely on your device.</string>
+</resources>
