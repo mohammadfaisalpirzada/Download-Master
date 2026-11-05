@@ -37,6 +37,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import com.themastersahib.downloader.data.model.TaskStatus
 import com.themastersahib.downloader.ui.FetchState
 import com.themastersahib.downloader.ui.MainViewModel
@@ -169,7 +171,15 @@ class MainActivity : ComponentActivity() {
                                             Icon(screen.icon, contentDescription = null)
                                         }
                                     },
-                                    label = { Text(stringResource(screen.titleRes)) }
+                                    label = {
+                                        Text(
+                                            text = stringResource(screen.titleRes),
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
+                                            fontSize = 11.sp
+                                        )
+                                    }
                                 )
                             }
                         }
