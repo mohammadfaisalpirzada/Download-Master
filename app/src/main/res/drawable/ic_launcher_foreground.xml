@@ -3,23 +3,54 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Outer Ring / Circle -->
+
+    <!-- Subtle Shield Emblem Backdrop -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M54,16 L84,32 L84,70 L54,88 L24,70 L24,32 Z" />
+
+    <!-- Outer Cyan Border for Shield -->
     <path
         android:strokeColor="#38BDF8"
-        android:strokeWidth="3.5"
-        android:pathData="M54,18 A36,36 0 1,1 53.9,18" />
-    <!-- Down Arrow Stem -->
+        android:strokeWidth="2.5"
+        android:pathData="M54,16 L84,32 L84,70 L54,88 L24,70 L24,32 Z" />
+
+    <!-- Stylized "D" on Left Side -->
     <path
         android:fillColor="#38BDF8"
-        android:pathData="M51,32h6v24h-6z" />
-    <!-- Down Arrow Head -->
+        android:pathData="M31,34h7v38h-7z" />
     <path
-        android:fillColor="#38BDF8"
-        android:pathData="M42,54l12,14l12,-14h-24z" />
-    <!-- Base Tray -->
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M34,36h8c7,0 11,4 11,10c0,6 -4,10 -11,10h-8" />
+
+    <!-- Stylized "M" on Right Side -->
+    <path
+        android:fillColor="#0D9488"
+        android:pathData="M60,34h6v38h-6z" />
+    <path
+        android:fillColor="#0D9488"
+        android:pathData="M76,34h6v38h-6z" />
     <path
         android:strokeColor="#0D9488"
-        android:strokeWidth="4"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round"
+        android:pathData="M63,35 L71,51 L79,35" />
+
+    <!-- Central Download Arrow in Foreground -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M51,46h6v20h-6z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M43,63 L54,76 L65,63 Z" />
+
+    <!-- Base Tray -->
+    <path
+        android:strokeColor="#10B981"
+        android:strokeWidth="3.5"
         android:strokeLineCap="round"
-        android:pathData="M38,74h32" />
+        android:pathData="M40,82h28" />
+
 </vector>
