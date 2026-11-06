@@ -124,8 +124,17 @@ fun FormatSelectionBottomSheet(
 
             Spacer(modifier = Modifier.height(18.dp))
 
+            val headerTitle = when {
+                videoInfo.videoFormats.isNotEmpty() && videoInfo.audioFormats.isNotEmpty() ->
+                    "Select Quality & Format (Video / Audio)"
+                videoInfo.audioFormats.isNotEmpty() ->
+                    stringResource(R.string.section_audio_only)
+                else ->
+                    stringResource(R.string.section_video_resolutions)
+            }
+
             Text(
-                text = stringResource(R.string.section_video_resolutions),
+                text = headerTitle,
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold

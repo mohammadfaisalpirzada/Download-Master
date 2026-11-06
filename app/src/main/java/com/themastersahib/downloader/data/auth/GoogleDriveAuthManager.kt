@@ -9,6 +9,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.common.api.Scope
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
@@ -73,6 +74,20 @@ class GoogleDriveAuthManager(private val context: Context) {
             } else {
                 Result.failure(Exception("Google Sign-In returned null account"))
             }
+        } catch (e: ApiException) {
+            val friendlyMsg = when (e.statusCode) {
+                CommonStatusCodes.DEVELOPER_ERROR -> {
+                    "Google Sign-In Error 10 (Configuration Required):\n" +
+                    "Android OAuth Client ID missing in Google Cloud Console.\n" +
+                    "Project: themastersahib (528622804634)\n" +
+                    "Package Name: com.themastersahib.downloader\n" +
+                    "SHA-1: 91:00:8C:17:30:14:29:C6:F4:EB:7B:92:1C:12:EF:9B:D5:6D:65:01"
+                }
+                CommonStatusCodes.SIGN_IN_REQUIRED -> "Please select a Google Account to sign in."
+                CommonStatusCodes.NETWORK_ERROR -> "Network error during Google Sign-In. Please check your internet connection."
+                else -> "Google Sign-In Error (${e.statusCode}): ${e.localizedMessage ?: "Unknown error"}"
+            }
+            Result.failure(Exception(friendlyMsg))
         } catch (e: Exception) {
             Result.failure(e)
         }

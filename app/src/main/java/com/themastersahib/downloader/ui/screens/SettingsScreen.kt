@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -66,6 +67,7 @@ import androidx.compose.ui.unit.sp
 import com.themastersahib.downloader.R
 import com.themastersahib.downloader.ui.theme.AccentCyan
 import com.themastersahib.downloader.ui.theme.AccentEmerald
+import com.themastersahib.downloader.ui.theme.AccentRose
 import com.themastersahib.downloader.ui.theme.PrimaryBlue
 
 @Composable
@@ -245,13 +247,41 @@ fun SettingsScreen(
                 }
 
                 if (!driveSyncMessage.isNullOrEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = driveSyncMessage,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = AccentCyan,
-                        fontSize = 11.5.sp
-                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = driveSyncMessage,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (driveSyncMessage.contains("Error", true)) AccentRose else AccentCyan,
+                                fontSize = 11.5.sp,
+                                lineHeight = 16.sp
+                            )
+                            if (driveSyncMessage.contains("91:00:8C:17:30:14:29:C6:F4:EB:7B:92:1C:12:EF:9B:D5:6D:65:01")) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                        val clip = android.content.ClipData.newPlainText("SHA-1 Fingerprint", "91:00:8C:17:30:14:29:C6:F4:EB:7B:92:1C:12:EF:9B:D5:6D:65:01")
+                                        clipboard.setPrimaryClip(clip)
+                                        android.widget.Toast.makeText(context, "SHA-1 Fingerprint copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(text = "Copy SHA-1 Fingerprint", fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
