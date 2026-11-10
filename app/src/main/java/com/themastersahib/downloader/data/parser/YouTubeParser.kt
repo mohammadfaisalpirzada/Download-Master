@@ -115,7 +115,13 @@ class YouTubeParser(private val client: OkHttpClient) {
             val formatList = mutableListOf<DownloadFormat>()
             val addedResolutions = mutableSetOf<String>()
 
-            // 1. Progressive streams (Combined Audio + Video)
+            // 1. Audio streams: resolve best audio first so it can be muxed with video
+            val audioStreams = streamInfo.audioStreams ?: emptyList()
+            val sortedAudios = audioStreams.sortedByDescending { it.averageBitrate }
+            val bestAudio = sortedAudios.firstOrNull()
+            val bestAudioUrl = bestAudio?.let { (try { it.url } catch (_: Exception) { null }) ?: it.content }
+
+            // 2. Progressive streams (Combined Audio + Video already embedded)
             streamInfo.videoStreams?.forEach { stream ->
                 val res = stream.resolution ?: ""
                 val streamUrl = (try { stream.url } catch (_: Exception) { null }) ?: stream.content
@@ -129,6 +135,7 @@ class YouTubeParser(private val client: OkHttpClient) {
                             label = "$res HD Video ($formatName)",
                             resolution = res,
                             downloadUrl = streamUrl,
+                            audioTrackUrl = null,
                             isAudioOnly = false,
                             extension = "mp4",
                             note = if (isHd) "High Definition Video (With Audio)" else "Standard Definition (With Audio)"
@@ -137,7 +144,7 @@ class YouTubeParser(private val client: OkHttpClient) {
                 }
             }
 
-            // 2. Video streams from videoOnlyStreams (1080p, 720p, 480p, 360p)
+            // 3. Video streams from videoOnlyStreams (1080p, 720p, 480p, 360p) with audioTrackUrl attached!
             val targetResolutions = listOf("1080p", "720p", "480p", "360p", "1440p", "2160p")
             val availableVideoOnly = streamInfo.videoOnlyStreams ?: emptyList()
             for (target in targetResolutions) {
@@ -158,9 +165,10 @@ class YouTubeParser(private val client: OkHttpClient) {
                                     label = "$target HD Video (MP4)",
                                     resolution = target,
                                     downloadUrl = streamUrl,
+                                    audioTrackUrl = bestAudioUrl,
                                     isAudioOnly = false,
                                     extension = "mp4",
-                                    note = if (isHd) "$target High Definition Stream" else "$target Standard Stream"
+                                    note = if (isHd) "$target HD Video (With Audio)" else "$target SD Video (With Audio)"
                                 )
                             )
                         }
@@ -181,64 +189,61 @@ class YouTubeParser(private val client: OkHttpClient) {
                                 label = "$res Video Stream",
                                 resolution = res,
                                 downloadUrl = streamUrl,
+                                audioTrackUrl = bestAudioUrl,
                                 isAudioOnly = false,
                                 extension = "mp4",
-                                note = "$res Video Stream"
+                                note = "$res Video Stream (With Audio)"
                             )
                         )
                     }
                 }
             }
 
-            // 3. Audio streams (Multiple qualities: 320kbps MP3 HQ, 192kbps MP3, 128kbps Standard)
-            val audioStreams = streamInfo.audioStreams ?: emptyList()
-            if (audioStreams.isNotEmpty()) {
-                val sortedAudios = audioStreams.sortedByDescending { it.averageBitrate }
-                val bestAudio = sortedAudios.firstOrNull()
-                val bestAudioUrl = bestAudio?.let { (try { it.url } catch (_: Exception) { null }) ?: it.content }
-
-                if (!bestAudioUrl.isNullOrEmpty()) {
-                    formatList.add(
-                        DownloadFormat(
-                            id = "yt_audio_320",
-                            label = "Audio High Quality (320 kbps MP3)",
-                            resolution = "Audio",
-                            downloadUrl = bestAudioUrl,
-                            isAudioOnly = true,
-                            extension = "mp3",
-                            note = "Master High Fidelity Audio"
-                        )
+            // 4. Audio format options
+            if (!bestAudioUrl.isNullOrEmpty()) {
+                formatList.add(
+                    DownloadFormat(
+                        id = "yt_audio_320",
+                        label = "Audio High Quality (320 kbps MP3)",
+                        resolution = "Audio",
+                        downloadUrl = bestAudioUrl,
+                        audioTrackUrl = null,
+                        isAudioOnly = true,
+                        extension = "mp3",
+                        note = "Master High Fidelity Audio"
                     )
+                )
 
-                    formatList.add(
-                        DownloadFormat(
-                            id = "yt_audio_192",
-                            label = "Audio Medium Quality (192 kbps MP3)",
-                            resolution = "Audio",
-                            downloadUrl = bestAudioUrl,
-                            isAudioOnly = true,
-                            extension = "mp3",
-                            note = "Balanced Quality and Size"
-                        )
+                formatList.add(
+                    DownloadFormat(
+                        id = "yt_audio_192",
+                        label = "Audio Medium Quality (192 kbps MP3)",
+                        resolution = "Audio",
+                        downloadUrl = bestAudioUrl,
+                        audioTrackUrl = null,
+                        isAudioOnly = true,
+                        extension = "mp3",
+                        note = "Balanced Quality and Size"
                     )
-                }
+                )
+            }
 
-                val standardAudio = sortedAudios.lastOrNull() ?: bestAudio
-                val standardUrl = standardAudio?.let { (try { it.url } catch (_: Exception) { null }) ?: it.content }
-                if (!standardUrl.isNullOrEmpty()) {
-                    val ext = if (standardAudio?.format?.name?.contains("m4a", true) == true) "m4a" else "mp3"
-                    formatList.add(
-                        DownloadFormat(
-                            id = "yt_audio_128",
-                            label = "Audio Standard (128 kbps $ext)",
-                            resolution = "Audio",
-                            downloadUrl = standardUrl,
-                            isAudioOnly = true,
-                            extension = ext,
-                            note = "Fast Download, Small Size"
-                        )
+            val standardAudio = sortedAudios.lastOrNull() ?: bestAudio
+            val standardUrl = standardAudio?.let { (try { it.url } catch (_: Exception) { null }) ?: it.content }
+            if (!standardUrl.isNullOrEmpty()) {
+                val ext = if (standardAudio?.format?.name?.contains("m4a", true) == true) "m4a" else "mp3"
+                formatList.add(
+                    DownloadFormat(
+                        id = "yt_audio_128",
+                        label = "Audio Standard (128 kbps $ext)",
+                        resolution = "Audio",
+                        downloadUrl = standardUrl,
+                        audioTrackUrl = null,
+                        isAudioOnly = true,
+                        extension = ext,
+                        note = "Fast Download, Small Size"
                     )
-                }
+                )
             }
 
             if (formatList.isNotEmpty()) {
@@ -312,32 +317,46 @@ class YouTubeParser(private val client: OkHttpClient) {
                             val adaptiveFormats = json.getAsJsonArray("adaptiveFormats")
                             if (adaptiveFormats != null) {
                                 var bestAudioUrl: String? = null
+                                var standardAudioUrl: String? = null
+
+                                // Find best audio first
+                                for (item in adaptiveFormats) {
+                                    val stream = item.asJsonObject
+                                    val type = stream.get("type")?.asString ?: ""
+                                    val streamUrl = stream.get("url")?.asString ?: continue
+                                    if (type.contains("audio/")) {
+                                        if (bestAudioUrl == null) {
+                                            bestAudioUrl = streamUrl
+                                        } else if (standardAudioUrl == null) {
+                                            standardAudioUrl = streamUrl
+                                        }
+                                    }
+                                }
+
+                                // Now add video formats and attach audioTrackUrl
                                 for (item in adaptiveFormats) {
                                     val stream = item.asJsonObject
                                     val type = stream.get("type")?.asString ?: ""
                                     val streamUrl = stream.get("url")?.asString ?: continue
                                     val qualityLabel = stream.get("qualityLabel")?.asString ?: stream.get("resolution")?.asString ?: ""
 
-                                    // Video adaptive stream
                                     if (type.contains("video/")) {
                                         val isMp4 = type.contains("mp4")
                                         if (qualityLabel.isNotEmpty() && !addedResolutions.contains(qualityLabel)) {
                                             addedResolutions.add(qualityLabel)
+                                            val isHd = qualityLabel.contains("720") || qualityLabel.contains("1080") || qualityLabel.contains("1440") || qualityLabel.contains("2160")
                                             formatList.add(
                                                 DownloadFormat(
                                                     id = "inv_adapt_$qualityLabel",
                                                     label = "$qualityLabel HD Video (${if (isMp4) "MP4" else "WebM"})",
                                                     resolution = qualityLabel,
                                                     downloadUrl = streamUrl,
+                                                    audioTrackUrl = bestAudioUrl,
                                                     isAudioOnly = false,
                                                     extension = "mp4",
-                                                    note = "$qualityLabel High Definition Stream"
+                                                    note = if (isHd) "$qualityLabel HD Video (With Audio)" else "$qualityLabel SD Video (With Audio)"
                                                 )
                                             )
-                                        }
-                                    } else if (type.contains("audio/")) {
-                                        if (bestAudioUrl == null) {
-                                            bestAudioUrl = streamUrl
                                         }
                                     }
                                 }
@@ -349,6 +368,7 @@ class YouTubeParser(private val client: OkHttpClient) {
                                             label = "Audio High Quality (320 kbps MP3)",
                                             resolution = "Audio",
                                             downloadUrl = bestAudioUrl,
+                                            audioTrackUrl = null,
                                             isAudioOnly = true,
                                             extension = "mp3",
                                             note = "High Fidelity Audio Stream"
@@ -360,6 +380,7 @@ class YouTubeParser(private val client: OkHttpClient) {
                                             label = "Audio Medium Quality (192 kbps MP3)",
                                             resolution = "Audio",
                                             downloadUrl = bestAudioUrl,
+                                            audioTrackUrl = null,
                                             isAudioOnly = true,
                                             extension = "mp3",
                                             note = "Standard Audio Stream"
@@ -461,16 +482,35 @@ class YouTubeParser(private val client: OkHttpClient) {
                 // 2. Adaptive streams: Video resolutions (1080p, 720p, 480p, 360p) & Audio
                 val adaptiveArr = streamingData.getAsJsonArray("adaptiveFormats")
                 if (adaptiveArr != null) {
-                    var bestAudioUrl: String? = null
+                    var bestAudioM4aUrl: String? = null
+                    var bestAudioAnyUrl: String? = null
                     var standardAudioUrl: String? = null
 
+                    // Scan for best audio track first (prefer AAC / m4a for native MediaMuxer compatibility)
+                    for (item in adaptiveArr) {
+                        val obj = item.asJsonObject
+                        val mimeType = obj.get("mimeType")?.asString ?: ""
+                        val streamUrl = obj.get("url")?.asString ?: continue
+                        if (mimeType.contains("audio/")) {
+                            if (bestAudioAnyUrl == null) bestAudioAnyUrl = streamUrl
+                            if (mimeType.contains("audio/mp4") && bestAudioM4aUrl == null) {
+                                bestAudioM4aUrl = streamUrl
+                            } else if (standardAudioUrl == null && streamUrl != (bestAudioM4aUrl ?: bestAudioAnyUrl)) {
+                                standardAudioUrl = streamUrl
+                            }
+                        }
+                    }
+
+                    val bestAudioUrl = bestAudioM4aUrl ?: bestAudioAnyUrl
+
+                    // Now parse video adaptive formats with audioTrackUrl attached for muxing!
                     for (item in adaptiveArr) {
                         val obj = item.asJsonObject
                         val mimeType = obj.get("mimeType")?.asString ?: ""
                         val streamUrl = obj.get("url")?.asString ?: continue
                         val qualityLabel = obj.get("qualityLabel")?.asString ?: ""
 
-                        if (mimeType.contains("video/mp4") && qualityLabel.isNotEmpty()) {
+                        if (mimeType.contains("video/") && qualityLabel.isNotEmpty()) {
                             if (!addedResolutions.contains(qualityLabel)) {
                                 addedResolutions.add(qualityLabel)
                                 val isHd = qualityLabel.contains("720") || qualityLabel.contains("1080") || qualityLabel.contains("1440") || qualityLabel.contains("2160")
@@ -480,17 +520,12 @@ class YouTubeParser(private val client: OkHttpClient) {
                                         label = "$qualityLabel HD Video (MP4)",
                                         resolution = qualityLabel,
                                         downloadUrl = streamUrl,
+                                        audioTrackUrl = bestAudioUrl,
                                         isAudioOnly = false,
                                         extension = "mp4",
-                                        note = if (isHd) "$qualityLabel High Definition Stream" else "$qualityLabel Standard Stream"
+                                        note = if (isHd) "$qualityLabel HD Video (With Audio)" else "$qualityLabel SD Video (With Audio)"
                                     )
                                 )
-                            }
-                        } else if (mimeType.contains("audio/")) {
-                            if (bestAudioUrl == null) {
-                                bestAudioUrl = streamUrl
-                            } else if (standardAudioUrl == null) {
-                                standardAudioUrl = streamUrl
                             }
                         }
                     }
@@ -502,6 +537,7 @@ class YouTubeParser(private val client: OkHttpClient) {
                                 label = "Audio High Quality (320 kbps MP3)",
                                 resolution = "Audio",
                                 downloadUrl = bestAudioUrl,
+                                audioTrackUrl = null,
                                 isAudioOnly = true,
                                 extension = "mp3",
                                 note = "Master High Fidelity Audio"
@@ -513,6 +549,7 @@ class YouTubeParser(private val client: OkHttpClient) {
                                 label = "Audio Medium Quality (192 kbps MP3)",
                                 resolution = "Audio",
                                 downloadUrl = bestAudioUrl,
+                                audioTrackUrl = null,
                                 isAudioOnly = true,
                                 extension = "mp3",
                                 note = "Balanced Quality and Size"
@@ -527,6 +564,7 @@ class YouTubeParser(private val client: OkHttpClient) {
                                 label = "Audio Standard (128 kbps M4A)",
                                 resolution = "Audio",
                                 downloadUrl = standardAudioUrl,
+                                audioTrackUrl = null,
                                 isAudioOnly = true,
                                 extension = "m4a",
                                 note = "Fast Download, Small Size"

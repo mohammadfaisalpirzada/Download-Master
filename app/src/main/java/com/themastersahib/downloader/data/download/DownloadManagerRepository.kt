@@ -66,6 +66,7 @@ class DownloadManagerRepository(private val context: Context) {
             title = videoInfo.title,
             thumbnailUrl = videoInfo.thumbnail,
             downloadUrl = format.downloadUrl,
+            audioTrackUrl = format.audioTrackUrl,
             platform = videoInfo.platform,
             formatLabel = format.label,
             isAudioOnly = format.isAudioOnly,
@@ -115,6 +116,7 @@ class DownloadManagerRepository(private val context: Context) {
 
         val updatedTask = task.copy(
             downloadUrl = downloadUrl,
+            audioTrackUrl = task.audioTrackUrl,
             status = TaskStatus.PENDING,
             errorMessage = null,
             progress = 0,
@@ -162,13 +164,14 @@ class DownloadManagerRepository(private val context: Context) {
             return
         }
 
+        // If format requires muxing (adaptive video + audio track)
+        if (!task.audioTrackUrl.isNullOrEmpty()) {
+            runMuxedDownload(taskId, task, outputStream, contentUri)
+            return
+        }
+
         try {
-            val referer = when {
-                task.downloadUrl.contains("suno") || task.downloadUrl.contains("cloudfront.net") -> "https://suno.com/"
-                task.downloadUrl.contains("tiktok") -> "https://www.tiktok.com/"
-                task.downloadUrl.contains("instagram") -> "https://www.instagram.com/"
-                else -> "https://www.google.com/"
-            }
+            val referer = getRefererForUrl(task.downloadUrl)
 
             val request = Request.Builder()
                 .url(task.downloadUrl)
@@ -251,6 +254,178 @@ class DownloadManagerRepository(private val context: Context) {
             }
         } finally {
             runningJobs.remove(taskId)
+        }
+    }
+
+    private fun runMuxedDownload(
+        taskId: String,
+        task: DownloadTask,
+        outputStream: java.io.OutputStream,
+        contentUri: android.net.Uri?
+    ) {
+        val tempDir = java.io.File(context.cacheDir, "dm_mux_temp").apply { mkdirs() }
+        val tempVideoFile = java.io.File(tempDir, "vid_${taskId}.mp4")
+        val tempAudioFile = java.io.File(tempDir, "aud_${taskId}.m4a")
+        val tempMuxedFile = java.io.File(tempDir, "mux_${taskId}.mp4")
+
+        try {
+            val videoReferer = getRefererForUrl(task.downloadUrl)
+            val audioReferer = getRefererForUrl(task.audioTrackUrl ?: "")
+
+            // 1. Download video track (0% - 70%)
+            val videoOk = downloadToFile(
+                url = task.downloadUrl,
+                destFile = tempVideoFile,
+                referer = videoReferer,
+                onProgress = { downloaded, total ->
+                    val progress = if (total > 0) ((downloaded * 70) / total).toInt() else 0
+                    updateTask(taskId) {
+                        it.copy(
+                            progress = progress,
+                            downloadedBytes = downloaded,
+                            totalBytes = total
+                        )
+                    }
+                    startForegroundServiceNotification(task.title, progress)
+                }
+            )
+
+            if (!videoOk || !tempVideoFile.exists() || tempVideoFile.length() == 0L) {
+                updateTask(taskId) {
+                    it.copy(
+                        status = TaskStatus.FAILED,
+                        errorMessage = "Failed to download video stream"
+                    )
+                }
+                return
+            }
+
+            // 2. Download audio track (70% - 90%)
+            val audioOk = downloadToFile(
+                url = task.audioTrackUrl ?: "",
+                destFile = tempAudioFile,
+                referer = audioReferer,
+                onProgress = { downloaded, total ->
+                    val progress = 70 + (if (total > 0) ((downloaded * 20) / total).toInt() else 0)
+                    updateTask(taskId) {
+                        it.copy(progress = progress)
+                    }
+                    startForegroundServiceNotification(task.title, progress)
+                }
+            )
+
+            // 3. Mux video and audio streams together (90% - 95%)
+            updateTask(taskId) { it.copy(progress = 92) }
+            val muxOk = if (audioOk && tempAudioFile.exists() && tempAudioFile.length() > 0L) {
+                MediaMuxerHelper.mux(tempVideoFile, tempAudioFile, tempMuxedFile)
+            } else {
+                false
+            }
+
+            val finalSourceFile = if (muxOk && tempMuxedFile.exists() && tempMuxedFile.length() > 0L) {
+                tempMuxedFile
+            } else {
+                tempVideoFile
+            }
+
+            // 4. Stream final file into destination Storage Uri (95% - 100%)
+            updateTask(taskId) { it.copy(progress = 96) }
+            outputStream.use { out ->
+                finalSourceFile.inputStream().use { input ->
+                    input.copyTo(out)
+                }
+                out.flush()
+            }
+
+            StorageHelper.markDownloadComplete(context, contentUri)
+
+            val totalFinalSize = finalSourceFile.length()
+            updateTask(taskId) {
+                it.copy(
+                    status = TaskStatus.COMPLETED,
+                    downloadedBytes = totalFinalSize,
+                    totalBytes = totalFinalSize,
+                    progress = 100,
+                    speedBps = 0L,
+                    localFilePath = contentUri?.toString()
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            updateTask(taskId) {
+                it.copy(
+                    status = TaskStatus.FAILED,
+                    errorMessage = e.localizedMessage ?: "Failed during video and audio muxing"
+                )
+            }
+        } finally {
+            try { tempVideoFile.delete() } catch (_: Exception) {}
+            try { tempAudioFile.delete() } catch (_: Exception) {}
+            try { tempMuxedFile.delete() } catch (_: Exception) {}
+            runningJobs.remove(taskId)
+        }
+    }
+
+    private fun downloadToFile(
+        url: String,
+        destFile: java.io.File,
+        referer: String,
+        onProgress: ((downloaded: Long, total: Long) -> Unit)? = null
+    ): Boolean {
+        try {
+            if (destFile.exists()) destFile.delete()
+            destFile.parentFile?.mkdirs()
+
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                .header("Accept", "*/*")
+                .header("Referer", referer)
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return false
+                val body = response.body ?: return false
+                val totalLength = body.contentLength()
+
+                var downloaded = 0L
+                val buffer = ByteArray(32 * 1024)
+                var bytesRead: Int
+                val inputStream = body.byteStream()
+
+                var lastUpdateTime = System.currentTimeMillis()
+
+                java.io.FileOutputStream(destFile).use { out ->
+                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                        out.write(buffer, 0, bytesRead)
+                        downloaded += bytesRead
+
+                        val now = System.currentTimeMillis()
+                        if (now - lastUpdateTime >= 300) {
+                            onProgress?.invoke(downloaded, totalLength)
+                            lastUpdateTime = now
+                        }
+                    }
+                    out.flush()
+                }
+                onProgress?.invoke(downloaded, totalLength)
+                return destFile.exists() && destFile.length() > 0L
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return false
+        }
+    }
+
+    private fun getRefererForUrl(url: String): String {
+        return when {
+            url.contains("facebook.com") || url.contains("fbcdn.net") -> "https://www.facebook.com/"
+            url.contains("youtube.com") || url.contains("googlevideo.com") -> "https://www.youtube.com/"
+            url.contains("suno") || url.contains("cloudfront.net") -> "https://suno.com/"
+            url.contains("tiktok") -> "https://www.tiktok.com/"
+            url.contains("instagram") -> "https://www.instagram.com/"
+            url.contains("twitter.com") || url.contains("x.com") || url.contains("twimg.com") -> "https://twitter.com/"
+            else -> "https://www.google.com/"
         }
     }
 

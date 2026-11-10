@@ -23,6 +23,7 @@ data class DownloadTask(
     val speedBps: Long = 0L,
     val status: TaskStatus = TaskStatus.PENDING,
     val errorMessage: String? = null,
+    val audioTrackUrl: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 ) {
     val formattedSpeed: String

@@ -8,7 +8,8 @@ data class DownloadFormat(
     val isAudioOnly: Boolean = false,
     val extension: String = if (isAudioOnly) "mp3" else "mp4",
     val estimatedSizeBytes: Long = 0L,
-    val note: String = ""
+    val note: String = "",
+    val audioTrackUrl: String? = null
 ) {
     val formattedSize: String
         get() {

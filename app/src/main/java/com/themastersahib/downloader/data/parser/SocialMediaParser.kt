@@ -22,81 +22,268 @@ class SocialMediaParser(private val client: OkHttpClient) {
     )
 
     suspend fun parseFacebook(url: String): VideoInfo? = withContext(Dispatchers.IO) {
+        var cleanUrl = url.trim()
+
+        // 1. Resolve redirect if shortlink (e.g. fb.watch, share/r, share/v)
         try {
-            val mobileUrl = url.replace("www.facebook.com", "m.facebook.com")
+            val headReq = Request.Builder()
+                .url(cleanUrl)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                .build()
+            client.newCall(headReq).execute().use { resp ->
+                val finalUrl = resp.request.url.toString()
+                if (finalUrl.isNotEmpty() && finalUrl != cleanUrl) {
+                    cleanUrl = finalUrl
+                }
+            }
+        } catch (_: Exception) {}
+
+        // Strategy 1: Desktop Facebook with complete browser headers
+        try {
+            val desktopUrl = cleanUrl
+                .replace("m.facebook.com", "www.facebook.com")
+                .replace("mbasic.facebook.com", "www.facebook.com")
+
             val request = Request.Builder()
-                .url(mobileUrl)
-                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
+                .url(desktopUrl)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+                .header("Accept-Language", "en-US,en;q=0.9")
+                .header("Sec-Fetch-Dest", "document")
+                .header("Sec-Fetch-Mode", "navigate")
+                .header("Sec-Fetch-Site", "none")
+                .header("Sec-Fetch-User", "?1")
+                .header("Upgrade-Insecure-Requests", "1")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val html = response.body?.string() ?: ""
+                    val videoInfo = extractFacebookDesktop(html, url)
+                    if (videoInfo != null && videoInfo.formats.isNotEmpty()) {
+                        return@withContext videoInfo
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // Strategy 2: Mobile basic (mbasic) scraper
+        try {
+            val mbasicUrl = cleanUrl
+                .replace("www.facebook.com", "mbasic.facebook.com")
+                .replace("m.facebook.com", "mbasic.facebook.com")
+                .let { if (!it.contains("mbasic.facebook.com")) it.replace("facebook.com", "mbasic.facebook.com") else it }
+
+            val request = Request.Builder()
+                .url(mbasicUrl)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                 .header("Accept-Language", "en-US,en;q=0.9")
                 .build()
 
             client.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
                     val html = response.body?.string() ?: ""
-                    val formats = mutableListOf<DownloadFormat>()
-
-                    val hdPattern = Pattern.compile("playable_url_quality_hd[\":\\s]+([^\",;\\s]+)")
-                    val sdPattern = Pattern.compile("playable_url[\":\\s]+([^\",;\\s]+)")
-
-                    val hdMatcher = hdPattern.matcher(html)
-                    val sdMatcher = sdPattern.matcher(html)
-
-                    if (hdMatcher.find()) {
-                        val rawHd = hdMatcher.group(1).replace("\\/", "/")
-                        val cleanHd = cleanUrl(rawHd)
-                        formats.add(
-                            DownloadFormat(
-                                id = "fb_hd",
-                                label = "720p / 1080p HD",
-                                resolution = "HD",
-                                downloadUrl = cleanHd,
-                                isAudioOnly = false,
-                                note = "High Definition Video"
-                            )
-                        )
-                    }
-
-                    if (sdMatcher.find()) {
-                        val rawSd = sdMatcher.group(1).replace("\\/", "/")
-                        val cleanSd = cleanUrl(rawSd)
-                        formats.add(
-                            DownloadFormat(
-                                id = "fb_sd",
-                                label = "480p / 360p SD",
-                                resolution = "SD",
-                                downloadUrl = cleanSd,
-                                isAudioOnly = false,
-                                note = "Standard Definition Video"
-                            )
-                        )
-                    }
-
-                    if (formats.isNotEmpty()) {
-                        val titlePattern = Pattern.compile("<title>([^<]+)</title>")
-                        val titleMatcher = titlePattern.matcher(html)
-                        val title = if (titleMatcher.find()) {
-                            titleMatcher.group(1).replace(" | Facebook", "").trim()
-                        } else {
-                            "Facebook Video"
-                        }
-
-                        return@withContext VideoInfo(
-                            originalUrl = url,
-                            title = title,
-                            thumbnail = null,
-                            author = "Facebook",
-                            durationSeconds = 0L,
-                            platform = SocialPlatform.FACEBOOK,
-                            formats = formats
-                        )
+                    val videoInfo = extractFacebookMbasic(html, url)
+                    if (videoInfo != null && videoInfo.formats.isNotEmpty()) {
+                        return@withContext videoInfo
                     }
                 }
             }
-        } catch (e: Exception) {
-            // Fallback
+        } catch (_: Exception) {}
+
+        // Strategy 3: Universal HTML5 & OpenGraph fallback
+        return@withContext parseGeneric(url)
+    }
+
+    private fun extractFacebookDesktop(html: String, originalUrl: String): VideoInfo? {
+        var hdUrl: String? = null
+        var sdUrl: String? = null
+
+        val hdPatterns = listOf(
+            Pattern.compile("\"browser_native_hd_url\"\\s*:\\s*\"([^\"]+)\""),
+            Pattern.compile("playable_url_quality_hd[\":\\s]+([^\",;\\s]+)"),
+            Pattern.compile("\"hd_src\"\\s*:\\s*\"([^\"]+)\""),
+            Pattern.compile("\"hd_src_no_ratelimit\"\\s*:\\s*\"([^\"]+)\"")
+        )
+        for (p in hdPatterns) {
+            val m = p.matcher(html)
+            if (m.find()) {
+                val candidate = unescapeFbUrl(m.group(1))
+                if (candidate.startsWith("http")) {
+                    hdUrl = candidate
+                    break
+                }
+            }
         }
 
-        return@withContext parseViaCobalt(url, SocialPlatform.FACEBOOK)
+        val sdPatterns = listOf(
+            Pattern.compile("\"browser_native_sd_url\"\\s*:\\s*\"([^\"]+)\""),
+            Pattern.compile("playable_url[\":\\s]+([^\",;\\s]+)"),
+            Pattern.compile("\"sd_src\"\\s*:\\s*\"([^\"]+)\""),
+            Pattern.compile("\"sd_src_no_ratelimit\"\\s*:\\s*\"([^\"]+)\"")
+        )
+        for (p in sdPatterns) {
+            val m = p.matcher(html)
+            if (m.find()) {
+                val candidate = unescapeFbUrl(m.group(1))
+                if (candidate.startsWith("http")) {
+                    sdUrl = candidate
+                    break
+                }
+            }
+        }
+
+        // Fallback meta tag video
+        if (hdUrl == null && sdUrl == null) {
+            val metaPattern = Pattern.compile("<meta\\s+(?:property|name)=[\"']og:video(?::secure_url|:url)?[\"']\\s+content=[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE)
+            val metaMatcher = metaPattern.matcher(html)
+            if (metaMatcher.find()) {
+                val candidate = unescapeFbUrl(metaMatcher.group(1))
+                if (candidate.startsWith("http")) {
+                    hdUrl = candidate
+                }
+            }
+        }
+
+        if (hdUrl == null && sdUrl == null) return null
+
+        val formats = mutableListOf<DownloadFormat>()
+        if (hdUrl != null) {
+            formats.add(
+                DownloadFormat(
+                    id = "fb_hd",
+                    label = "1080p / 720p HD Video (MP4)",
+                    resolution = "HD",
+                    downloadUrl = hdUrl,
+                    isAudioOnly = false,
+                    extension = "mp4",
+                    note = "High Definition Video (With Audio)"
+                )
+            )
+        }
+
+        if (sdUrl != null) {
+            formats.add(
+                DownloadFormat(
+                    id = "fb_sd",
+                    label = "480p / 360p SD Video (MP4)",
+                    resolution = "SD",
+                    downloadUrl = sdUrl,
+                    isAudioOnly = false,
+                    extension = "mp4",
+                    note = "Standard Definition Video (With Audio)"
+                )
+            )
+        }
+
+        val audioSource = hdUrl ?: sdUrl
+        if (audioSource != null) {
+            formats.add(
+                DownloadFormat(
+                    id = "fb_audio",
+                    label = "Audio Only (MP3)",
+                    resolution = "Audio",
+                    downloadUrl = audioSource,
+                    isAudioOnly = true,
+                    extension = "mp3",
+                    note = "Audio Track Extracted"
+                )
+            )
+        }
+
+        val titlePattern = Pattern.compile("<title>([^<]+)</title>", Pattern.CASE_INSENSITIVE)
+        val titleMatcher = titlePattern.matcher(html)
+        val title = if (titleMatcher.find()) {
+            titleMatcher.group(1).replace(" | Facebook", "").replace("Facebook", "").trim().ifEmpty { "Facebook Video" }
+        } else {
+            "Facebook Video"
+        }
+
+        var thumbnail: String? = null
+        val thumbPattern = Pattern.compile("<meta\\s+property=[\"']og:image[\"']\\s+content=[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE)
+        val thumbMatcher = thumbPattern.matcher(html)
+        if (thumbMatcher.find()) {
+            thumbnail = unescapeFbUrl(thumbMatcher.group(1))
+        }
+
+        return VideoInfo(
+            originalUrl = originalUrl,
+            title = title,
+            thumbnail = thumbnail,
+            author = "Facebook",
+            durationSeconds = 0L,
+            platform = SocialPlatform.FACEBOOK,
+            formats = formats
+        )
+    }
+
+    private fun extractFacebookMbasic(html: String, originalUrl: String): VideoInfo? {
+        val redirectPattern = Pattern.compile("href=[\"']/video_redirect/\\?src=([^\"'&]+)", Pattern.CASE_INSENSITIVE)
+        val redirectMatcher = redirectPattern.matcher(html)
+        var streamUrl: String? = null
+        if (redirectMatcher.find()) {
+            val encoded = redirectMatcher.group(1)
+            try {
+                streamUrl = URLDecoder.decode(encoded, "UTF-8")
+            } catch (_: Exception) {}
+        }
+
+        if (streamUrl == null) {
+            val videoTagPattern = Pattern.compile("<video[^>]+src=[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE)
+            val videoTagMatcher = videoTagPattern.matcher(html)
+            if (videoTagMatcher.find()) {
+                streamUrl = unescapeFbUrl(videoTagMatcher.group(1))
+            }
+        }
+
+        if (streamUrl.isNullOrEmpty() || !streamUrl.startsWith("http")) return null
+
+        val formats = listOf(
+            DownloadFormat(
+                id = "fb_mbasic_video",
+                label = "Video (Original MP4)",
+                resolution = "SD",
+                downloadUrl = streamUrl,
+                isAudioOnly = false,
+                extension = "mp4",
+                note = "Facebook Video Stream"
+            ),
+            DownloadFormat(
+                id = "fb_mbasic_audio",
+                label = "Audio Only (MP3)",
+                resolution = "Audio",
+                downloadUrl = streamUrl,
+                isAudioOnly = true,
+                extension = "mp3",
+                note = "Audio Track"
+            )
+        )
+
+        return VideoInfo(
+            originalUrl = originalUrl,
+            title = "Facebook Video",
+            thumbnail = null,
+            author = "Facebook",
+            durationSeconds = 0L,
+            platform = SocialPlatform.FACEBOOK,
+            formats = formats
+        )
+    }
+
+    private fun unescapeFbUrl(raw: String): String {
+        var s = raw.replace("\\/", "/")
+            .replace("\\u0025", "%")
+            .replace("\\u0026", "&")
+            .replace("&amp;", "&")
+            .replace("\"", "")
+            .trim()
+        if (s.contains("%2F") || s.contains("%3A")) {
+            try {
+                s = URLDecoder.decode(s, "UTF-8")
+            } catch (_: Exception) {}
+        }
+        return s
     }
 
     suspend fun parseInstagram(url: String): VideoInfo? = withContext(Dispatchers.IO) {
