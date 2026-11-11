@@ -14,6 +14,7 @@ import com.google.android.gms.common.api.Scope
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -124,16 +125,25 @@ class GoogleDriveAuthManager(private val context: Context) {
 
             // Step 2: Upload file directly into user's folder
             val contentResolver = context.contentResolver
+            // The descriptor is only needed for the size: close it right away.
+            val fileLength = try {
+                contentResolver.openFileDescriptor(fileUri, "r")?.use { it.statSize } ?: -1L
+            } catch (_: Exception) {
+                -1L
+            }
+
+            // Built with Gson so quotes in a file name cannot break the JSON.
+            val metadataJson = com.google.gson.JsonObject().apply {
+                addProperty("name", fileName)
+                addProperty("mimeType", mimeType)
+                if (folderId != null) {
+                    add("parents", com.google.gson.JsonArray().apply { add(folderId) })
+                }
+            }.toString()
+
+            // Opened last, so no earlier failure can leak it; the request body closes it.
             val inputStream: InputStream = contentResolver.openInputStream(fileUri)
                 ?: return@withContext Result.failure(Exception("Cannot open local file stream."))
-
-            val fileLength = contentResolver.openFileDescriptor(fileUri, "r")?.statSize ?: -1L
-
-            val metadataJson = if (folderId != null) {
-                """{"name": "$fileName", "parents": ["$folderId"], "mimeType": "$mimeType"}"""
-            } else {
-                """{"name": "$fileName", "mimeType": "$mimeType"}"""
-            }
 
             val requestBody = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
@@ -174,7 +184,13 @@ class GoogleDriveAuthManager(private val context: Context) {
     private fun getOrCreateDriveFolder(token: String, folderName: String): String? {
         try {
             // Check existing folder
-            val searchUrl = "https://www.googleapis.com/drive/v3/files?q=name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)"
+            val searchUrl = "https://www.googleapis.com/drive/v3/files".toHttpUrl().newBuilder()
+                .addQueryParameter(
+                    "q",
+                    "name='${folderName.replace("'", "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+                )
+                .addQueryParameter("fields", "files(id,name)")
+                .build()
             val searchRequest = Request.Builder()
                 .url(searchUrl)
                 .header("Authorization", "Bearer $token")
@@ -192,7 +208,10 @@ class GoogleDriveAuthManager(private val context: Context) {
             }
 
             // Create folder
-            val createJson = """{"name": "$folderName", "mimeType": "application/vnd.google-apps.folder"}"""
+            val createJson = com.google.gson.JsonObject().apply {
+                addProperty("name", folderName)
+                addProperty("mimeType", "application/vnd.google-apps.folder")
+            }.toString()
             val createRequest = Request.Builder()
                 .url("https://www.googleapis.com/drive/v3/files")
                 .header("Authorization", "Bearer $token")
@@ -223,17 +242,24 @@ class GoogleDriveAuthManager(private val context: Context) {
 
             override fun contentLength(): Long = totalLength
 
+            // The stream can be read once only, so OkHttp must not silently retry the upload.
+            override fun isOneShot(): Boolean = true
+
             override fun writeTo(sink: BufferedSink) {
                 val buffer = ByteArray(8 * 1024)
                 var uploaded = 0L
+                var lastPercent = -1
                 var read: Int
                 inputStream.use { stream ->
                     while (stream.read(buffer).also { read = it } != -1) {
                         sink.write(buffer, 0, read)
                         uploaded += read
                         if (totalLength > 0) {
-                            val percent = ((uploaded * 100) / totalLength).toInt()
-                            onProgress(percent)
+                            val percent = ((uploaded * 100) / totalLength).toInt().coerceIn(0, 100)
+                            if (percent != lastPercent) {
+                                lastPercent = percent
+                                onProgress(percent)
+                            }
                         }
                     }
                 }

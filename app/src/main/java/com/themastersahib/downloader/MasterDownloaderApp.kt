@@ -12,6 +12,11 @@ class MasterDownloaderApp : Application() {
         const val DOWNLOAD_CHANNEL_NAME = "Master Downloader Progress"
     }
 
+    /** Single download engine shared by the UI and the foreground service. */
+    val downloadRepository: com.themastersahib.downloader.data.download.DownloadManagerRepository by lazy {
+        com.themastersahib.downloader.data.download.DownloadManagerRepository(this)
+    }
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()

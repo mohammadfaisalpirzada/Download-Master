@@ -27,6 +27,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -39,7 +42,7 @@ fun VideoPlayerDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val exoPlayer = remember {
+    val exoPlayer = remember(mediaUri) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(mediaUri))
             prepare()
@@ -47,8 +50,15 @@ fun VideoPlayerDialog(
         }
     }
 
-    DisposableEffect(Unit) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(exoPlayer, lifecycleOwner) {
+        // Do not keep playing sound after the user leaves the app.
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) exoPlayer.pause()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             exoPlayer.release()
         }
     }
@@ -89,7 +99,10 @@ fun VideoPlayerDialog(
                             putExtra(Intent.EXTRA_STREAM, mediaUri)
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        context.startActivity(Intent.createChooser(shareIntent, "Share Media"))
+                        try {
+                            context.startActivity(Intent.createChooser(shareIntent, "Share Media"))
+                        } catch (_: Exception) {
+                        }
                     },
                     modifier = Modifier
                         .background(Color.Black.copy(alpha = 0.65f), CircleShape)

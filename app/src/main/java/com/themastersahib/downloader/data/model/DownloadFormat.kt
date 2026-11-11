@@ -9,7 +9,9 @@ data class DownloadFormat(
     val extension: String = if (isAudioOnly) "mp3" else "mp4",
     val estimatedSizeBytes: Long = 0L,
     val note: String = "",
-    val audioTrackUrl: String? = null
+    val audioTrackUrl: String? = null,
+    /** True when [downloadUrl] is a video container and only its audio track must be saved. */
+    val extractAudio: Boolean = false
 ) {
     val formattedSize: String
         get() {

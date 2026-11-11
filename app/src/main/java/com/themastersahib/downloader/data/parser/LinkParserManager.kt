@@ -32,65 +32,80 @@ class LinkParserManager {
             return@withContext Result.failure(IllegalArgumentException("Invalid link format. Please provide a full web link."))
         }
 
-        // Multi-URL batch paste detection (e.g., from Suno console extractor script)
-        if (allUrls.size > 1) {
-            val batchSongs = mutableListOf<BatchSongItem>()
-            var idx = 1
+        // Multi-URL batch paste detection (e.g., from Suno console extractor script).
+        // Only Suno links form a batch; any other pasted text falls back to its first link.
+        val sunoUrls = allUrls.filter { SocialPlatform.fromUrl(it) == SocialPlatform.SUNO }
+        if (sunoUrls.size > 1) {
+            // Keyed by id: the same song pasted twice must appear once (duplicate list keys crash the UI).
+            val batchSongs = LinkedHashMap<String, BatchSongItem>()
             val uuidPattern = Pattern.compile("([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})")
 
-            for (link in allUrls) {
-                val clean = link.trim()
+            for (clean in sunoUrls) {
                 val matcher = uuidPattern.matcher(clean)
-                val id = if (matcher.find()) matcher.group(1) else "song_$idx"
-                val audioUrl = if (clean.endsWith(".mp3") || clean.endsWith(".m4a")) clean else "https://cdn1.suno.ai/$id.mp3"
-                val videoUrl = "https://cdn1.suno.ai/$id.mp4"
-                val coverUrl = "https://cdn2.suno.ai/image_large_$id.png"
+                // A link without a song id (profile, playlist...) cannot be turned into a file URL.
+                val id = (if (matcher.find()) matcher.group(1) else null) ?: continue
+                if (batchSongs.containsKey(id)) continue
+                val path = clean.substringBefore('?').lowercase()
+                // cdn1 .mp3 links answer 403 nowadays, so only a direct .m4a link is used as-is.
+                val audioUrl = if (path.endsWith(".m4a")) {
+                    clean
+                } else {
+                    "https://d2lwuy8qc234o3.cloudfront.net/1/clip/$id.m4a"
+                }
 
-                batchSongs.add(
-                    BatchSongItem(
-                        id = id,
-                        title = "Suno Track #$idx",
-                        audioUrl = audioUrl,
-                        videoUrl = videoUrl,
-                        coverUrl = coverUrl,
-                        isSelected = true
-                    )
+                batchSongs[id] = BatchSongItem(
+                    id = id,
+                    title = "Suno Track #${batchSongs.size + 1}",
+                    audioUrl = audioUrl,
+                    videoUrl = "https://cdn1.suno.ai/$id.mp4",
+                    coverUrl = "https://cdn2.suno.ai/image_large_$id.png",
+                    isSelected = true
                 )
-                idx++
             }
 
-            return@withContext Result.success(
-                VideoInfo(
-                    originalUrl = allUrls.first(),
-                    title = "Suno Batch (${batchSongs.size} Songs)",
-                    thumbnail = batchSongs.firstOrNull()?.coverUrl,
-                    author = "Suno AI",
-                    durationSeconds = 0L,
-                    platform = SocialPlatform.SUNO,
-                    formats = emptyList(),
-                    batchSongs = batchSongs
+            if (batchSongs.size > 1) {
+                val songs = batchSongs.values.toList()
+                return@withContext Result.success(
+                    VideoInfo(
+                        originalUrl = sunoUrls.first(),
+                        title = "Suno Batch (${songs.size} Songs)",
+                        thumbnail = songs.first().coverUrl,
+                        author = "Suno AI",
+                        durationSeconds = 0L,
+                        platform = SocialPlatform.SUNO,
+                        formats = emptyList(),
+                        batchSongs = songs
+                    )
                 )
-            )
+            }
         }
 
         val cleanUrl = allUrls[0]
         val platform = detectPlatform(cleanUrl)
 
-        val info = when (platform) {
-            SocialPlatform.SUNO -> sunoParser.parse(cleanUrl)
-            SocialPlatform.TIKTOK -> tikTokParser.parse(cleanUrl)
-            SocialPlatform.YOUTUBE -> youTubeParser.parse(cleanUrl)
-            SocialPlatform.FACEBOOK -> socialMediaParser.parseFacebook(cleanUrl)
-            SocialPlatform.INSTAGRAM -> socialMediaParser.parseInstagram(cleanUrl)
-            SocialPlatform.TWITTER -> socialMediaParser.parseTwitter(cleanUrl)
-            SocialPlatform.OTHER -> {
-                // If it looks like suno, try Suno first
-                if (cleanUrl.contains("suno")) {
-                    sunoParser.parse(cleanUrl) ?: socialMediaParser.parseGeneric(cleanUrl)
-                } else {
-                    socialMediaParser.parseGeneric(cleanUrl)
+        val info = try {
+            when (platform) {
+                SocialPlatform.SUNO -> sunoParser.parse(cleanUrl)
+                SocialPlatform.TIKTOK -> tikTokParser.parse(cleanUrl)
+                SocialPlatform.YOUTUBE -> youTubeParser.parse(cleanUrl)
+                SocialPlatform.FACEBOOK -> socialMediaParser.parseFacebook(cleanUrl)
+                SocialPlatform.INSTAGRAM -> socialMediaParser.parseInstagram(cleanUrl)
+                SocialPlatform.TWITTER -> socialMediaParser.parseTwitter(cleanUrl)
+                SocialPlatform.OTHER -> {
+                    // If it looks like suno, try Suno first
+                    if (cleanUrl.contains("suno")) {
+                        sunoParser.parse(cleanUrl) ?: socialMediaParser.parseGeneric(cleanUrl)
+                    } else {
+                        socialMediaParser.parseGeneric(cleanUrl)
+                    }
                 }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // A parser bug or malformed page must never crash the app.
+            e.printStackTrace()
+            null
         }
 
         return@withContext if (info != null && (info.formats.isNotEmpty() || info.batchSongs.isNotEmpty())) {
@@ -104,10 +119,12 @@ class LinkParserManager {
 
     private fun extractAllUrls(text: String): List<String> {
         val list = mutableListOf<String>()
-        val matcher = Pattern.compile("https?://[^\\s]+").matcher(text.trim())
+        val matcher = Pattern.compile("https?://[^\\s\"'<>]+").matcher(text.trim())
         while (matcher.find()) {
-            list.add(matcher.group())
+            // Links copied from sentences often drag punctuation along.
+            val url = matcher.group().trimEnd('.', ',', ';', ')', ']', '!')
+            if (url.length > 10 && SocialPlatform.hostOf(url).contains('.')) list.add(url)
         }
-        return list
+        return list.distinct()
     }
 }

@@ -18,6 +18,14 @@ import com.themastersahib.downloader.data.model.VideoInfo
 import com.themastersahib.downloader.data.parser.LinkParserManager
 import com.themastersahib.downloader.data.update.AppUpdateManager
 import com.themastersahib.downloader.data.update.UpdateInfo
+import android.provider.OpenableColumns
+import com.themastersahib.downloader.MasterDownloaderApp
+import com.themastersahib.downloader.data.model.TaskStatus
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,7 +41,14 @@ sealed class FetchState {
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val parserManager = LinkParserManager()
-    private val downloadRepo = DownloadManagerRepository(application)
+    // Shared with the foreground service, so downloads survive the screen being closed.
+    private val downloadRepo: DownloadManagerRepository =
+        (application as MasterDownloaderApp).downloadRepository
+    private val uiPrefs = application.getSharedPreferences("dm_ui_settings", Context.MODE_PRIVATE)
+
+    /** Drive uploads run one at a time so the shared progress state stays meaningful. */
+    private val driveUploadLock = Mutex()
+    private val handledCompletedTaskIds = HashSet<String>()
     private val updateManager = AppUpdateManager(application)
     private val authManager = GoogleDriveAuthManager(application)
 
@@ -53,7 +68,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _driveSyncMessage = MutableStateFlow<String?>(null)
     val driveSyncMessage: StateFlow<String?> = _driveSyncMessage.asStateFlow()
 
-    private val _autoSyncToDrive = MutableStateFlow(false)
+    private val _autoSyncToDrive = MutableStateFlow(uiPrefs.getBoolean(PREF_AUTO_SYNC, false))
     val autoSyncToDrive: StateFlow<Boolean> = _autoSyncToDrive.asStateFlow()
 
     // In-app Auto Update State
@@ -83,11 +98,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val detectedClipboardUrl: StateFlow<String?> = _detectedClipboardUrl.asStateFlow()
 
     private var lastDismissedUrl: String? = null
+    private var fetchJob: Job? = null
+
+    private companion object {
+        const val PREF_AUTO_SYNC = "auto_sync_to_drive"
+    }
 
     init {
         loadSavedFiles()
         checkForUpdates(silent = true)
         loadGoogleUser()
+        observeCompletedDownloads()
+    }
+
+    /** Refreshes the gallery and runs the optional Drive auto-sync when a download finishes. */
+    private fun observeCompletedDownloads() {
+        // Downloads that finished before this screen existed were already handled.
+        downloadRepo.tasks.value
+            .filter { it.status == TaskStatus.COMPLETED }
+            .forEach { handledCompletedTaskIds.add(it.id) }
+
+        viewModelScope.launch {
+            downloadRepo.tasks.collect { tasks ->
+                val newlyCompleted = tasks.filter {
+                    it.status == TaskStatus.COMPLETED && handledCompletedTaskIds.add(it.id)
+                }
+                // Forget tasks that left the list so the set cannot grow forever.
+                val liveIds = tasks.mapTo(HashSet()) { it.id }
+                handledCompletedTaskIds.retainAll(liveIds)
+
+                if (newlyCompleted.isEmpty()) return@collect
+                loadSavedFiles()
+                if (_autoSyncToDrive.value && _googleUser.value != null) {
+                    newlyCompleted.forEach { task ->
+                        task.localFilePath?.let { syncFileToUserGoogleDrive(Uri.parse(it), task.isAudioOnly) }
+                    }
+                }
+            }
+        }
     }
 
     private fun loadGoogleUser() {
@@ -112,40 +160,67 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         authManager.signOut {
             _googleUser.value = null
             _autoSyncToDrive.value = false
+            uiPrefs.edit().putBoolean(PREF_AUTO_SYNC, false).apply()
             _driveSyncMessage.value = "Signed out of Google Drive"
         }
     }
 
     fun toggleAutoSyncToDrive(enabled: Boolean) {
+        if (enabled && _googleUser.value == null) {
+            _driveSyncMessage.value = "Please sign in with Google first to enable auto-sync."
+            return
+        }
         _autoSyncToDrive.value = enabled
+        uiPrefs.edit().putBoolean(PREF_AUTO_SYNC, enabled).apply()
     }
 
     fun clearDriveSyncMessage() {
         _driveSyncMessage.value = null
     }
 
-    fun syncFileToUserGoogleDrive(fileUri: Uri, fileName: String, mimeType: String = "video/mp4") {
+    fun syncFileToUserGoogleDrive(fileUri: Uri, isAudio: Boolean) {
         if (_googleUser.value == null) {
             _driveSyncMessage.value = "Please sign in with Google first to sync files to your Drive."
             return
         }
 
         viewModelScope.launch {
-            _isSyncingToDrive.value = true
-            _driveSyncProgress.value = 0
-            _driveSyncMessage.value = "Syncing $fileName to your Google Drive..."
+            driveUploadLock.withLock {
+                // Upload under the real file name and type instead of a generic placeholder.
+                val (fileName, mimeType) = withContext(Dispatchers.IO) { describeFile(fileUri, isAudio) }
 
-            val result = authManager.uploadToUserDrive(fileUri, fileName, mimeType) { progress ->
-                _driveSyncProgress.value = progress
-            }
-
-            _isSyncingToDrive.value = false
-            result.onSuccess { link ->
-                _driveSyncMessage.value = "Successfully synced to your personal Google Drive!"
-            }.onFailure { err ->
-                _driveSyncMessage.value = "Google Drive sync error: ${err.localizedMessage}"
+                _isSyncingToDrive.value = true
+                _driveSyncProgress.value = 0
+                _driveSyncMessage.value = "Syncing $fileName to your Google Drive..."
+                try {
+                    val result = authManager.uploadToUserDrive(fileUri, fileName, mimeType) { progress ->
+                        _driveSyncProgress.value = progress
+                    }
+                    result.onSuccess {
+                        _driveSyncMessage.value = "Successfully synced to your personal Google Drive!"
+                    }.onFailure { err ->
+                        _driveSyncMessage.value = "Google Drive sync error: ${err.localizedMessage ?: "unknown error"}"
+                    }
+                } finally {
+                    _isSyncingToDrive.value = false
+                }
             }
         }
+    }
+
+    private fun describeFile(fileUri: Uri, isAudio: Boolean): Pair<String, String> {
+        val resolver = getApplication<Application>().contentResolver
+        var name: String? = null
+        try {
+            resolver.query(fileUri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) name = cursor.getString(0)
+            }
+        } catch (_: Exception) {
+        }
+        val detectedType = try { resolver.getType(fileUri) } catch (_: Exception) { null }
+        val mimeType = detectedType ?: if (isAudio) "audio/mp4" else "video/mp4"
+        val fallback = "DownloadMaster_${System.currentTimeMillis()}.${if (isAudio) "m4a" else "mp4"}"
+        return Pair(name?.takeIf { it.isNotBlank() } ?: fallback, mimeType)
     }
 
     fun checkForUpdates(silent: Boolean = false) {
@@ -236,18 +311,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun pasteFromClipboard() {
-        val clipboard = getApplication<Application>().getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-        if (clipboard != null && clipboard.hasPrimaryClip()) {
-            val clipData = clipboard.primaryClip
-            if (clipData != null && clipData.itemCount > 0) {
-                val text = clipData.getItemAt(0).text?.toString()?.trim() ?: ""
-                if (text.startsWith("http://") || text.startsWith("https://")) {
-                    _urlInput.value = text
-                    fetchVideoInfo(text)
-                } else if (text.isNotEmpty()) {
-                    _urlInput.value = text
+        try {
+            val clipboard = getApplication<Application>().getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            if (clipboard != null && clipboard.hasPrimaryClip()) {
+                val clipData = clipboard.primaryClip
+                if (clipData != null && clipData.itemCount > 0) {
+                    val text = clipData.getItemAt(0).text?.toString()?.trim() ?: ""
+                    if (text.startsWith("http://") || text.startsWith("https://")) {
+                        _urlInput.value = text
+                        fetchVideoInfo(text)
+                    } else if (text.isNotEmpty()) {
+                        _urlInput.value = text
+                    }
                 }
             }
+        } catch (e: Exception) {
+            // Some devices throw when the clipboard is locked or holds an unreadable item.
         }
     }
 
@@ -258,7 +337,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        viewModelScope.launch {
+        // A newer request replaces an older one, so a slow old answer cannot overwrite it.
+        fetchJob?.cancel()
+        fetchJob = viewModelScope.launch {
             _fetchState.value = FetchState.Loading
             val result = parserManager.resolve(trimmed)
             result.onSuccess { info ->
@@ -290,6 +371,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun dismissFormatSheet() {
+        fetchJob?.cancel()
         _fetchState.value = FetchState.Idle
     }
 
@@ -299,8 +381,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadSavedFiles() {
         viewModelScope.launch {
-            val list = StorageHelper.getSavedFiles(getApplication())
-            _savedFiles.value = list
+            // MediaStore queries hit the disk: keep them off the main thread.
+            _savedFiles.value = withContext(Dispatchers.IO) {
+                StorageHelper.getSavedFiles(getApplication())
+            }
         }
     }
 
@@ -326,12 +410,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 context.startActivity(Intent.createChooser(chooserIntent, "Save / Upload to Google Drive"))
             }
         } catch (e: Exception) {
-            val generalIntent = Intent(Intent.ACTION_SEND).apply {
-                type = mimeType
-                putExtra(Intent.EXTRA_STREAM, fileUri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            try {
+                val generalIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = mimeType
+                    putExtra(Intent.EXTRA_STREAM, fileUri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(Intent.createChooser(generalIntent, "Save File"))
+            } catch (inner: Exception) {
+                _driveSyncMessage.value = "No app available to share this file."
             }
-            context.startActivity(Intent.createChooser(generalIntent, "Save File"))
         }
     }
 }

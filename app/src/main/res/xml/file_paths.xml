@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Only the folders the app really shares from: nothing else can be exposed through the provider. -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="external_files" path="." />
-    <external-files-path name="external_app_files" path="." />
-    <files-path name="internal_files" path="." />
-    <cache-path name="internal_cache" path="." />
+    <!-- Android 8 / 9 downloads in the public Movies and Music folders -->
+    <external-path name="dm_movies" path="Movies/DownloadMaster/" />
+    <external-path name="dm_music" path="Music/DownloadMaster/" />
+    <!-- Downloaded update APK handed to the package installer -->
+    <cache-path name="dm_updates" path="updates/" />
 </paths>

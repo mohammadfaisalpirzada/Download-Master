@@ -182,11 +182,12 @@ class SocialMediaParser(private val client: OkHttpClient) {
             formats.add(
                 DownloadFormat(
                     id = "fb_audio",
-                    label = "Audio Only (MP3)",
+                    label = "Audio Only (M4A)",
                     resolution = "Audio",
                     downloadUrl = audioSource,
                     isAudioOnly = true,
-                    extension = "mp3",
+                    extension = "m4a",
+                    extractAudio = true,
                     note = "Audio Track Extracted"
                 )
             )
@@ -251,11 +252,12 @@ class SocialMediaParser(private val client: OkHttpClient) {
             ),
             DownloadFormat(
                 id = "fb_mbasic_audio",
-                label = "Audio Only (MP3)",
+                label = "Audio Only (M4A)",
                 resolution = "Audio",
                 downloadUrl = streamUrl,
                 isAudioOnly = true,
-                extension = "mp3",
+                extension = "m4a",
+                extractAudio = true,
                 note = "Audio Track"
             )
         )
@@ -319,11 +321,12 @@ class SocialMediaParser(private val client: OkHttpClient) {
                 ),
                 DownloadFormat(
                     id = "direct_audio",
-                    label = "Audio Only (MP3)",
+                    label = "Audio Only (M4A)",
                     resolution = "Audio",
                     downloadUrl = cleanUrl,
                     isAudioOnly = true,
-                    extension = "mp3",
+                    extension = "m4a",
+                    extractAudio = true,
                     note = "Audio Track"
                 )
             )
@@ -407,11 +410,12 @@ class SocialMediaParser(private val client: OkHttpClient) {
                             formats.add(
                                 DownloadFormat(
                                     id = "universal_audio",
-                                    label = "Audio Only (MP3)",
+                                    label = "Audio Only (M4A)",
                                     resolution = "Audio",
                                     downloadUrl = formats[0].downloadUrl,
                                     isAudioOnly = true,
-                                    extension = "mp3",
+                                    extension = "m4a",
+                                    extractAudio = true,
                                     note = "Extracted Audio Track"
                                 )
                             )
@@ -457,7 +461,12 @@ class SocialMediaParser(private val client: OkHttpClient) {
 
         for (host in cobaltInstances) {
             try {
-                val payload = "{\"url\": \"$url\", \"videoQuality\": \"1080\", \"downloadMode\": \"auto\"}"
+                // Built with Gson so quotes or backslashes in the link cannot break the JSON.
+                val payload = com.google.gson.JsonObject().apply {
+                    addProperty("url", url)
+                    addProperty("videoQuality", "1080")
+                    addProperty("downloadMode", "auto")
+                }.toString()
                 val request = Request.Builder()
                     .url(host)
                     .header("Accept", "application/json")
@@ -484,11 +493,12 @@ class SocialMediaParser(private val client: OkHttpClient) {
                             ),
                             DownloadFormat(
                                 id = "${platform.name.lowercase()}_audio",
-                                label = "Audio Only (MP3)",
+                                label = "Audio Only (M4A)",
                                 resolution = "Audio",
                                 downloadUrl = downloadUrl,
                                 isAudioOnly = true,
-                                extension = "mp3",
+                                extension = "m4a",
+                                extractAudio = true,
                                 note = "Extracted Audio Track"
                             )
                         )

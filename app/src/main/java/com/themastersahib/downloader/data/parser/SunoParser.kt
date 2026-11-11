@@ -163,8 +163,8 @@ class SunoParser(private val client: OkHttpClient) {
         val formats = listOf(
             DownloadFormat(
                 id = "suno_audio_m4a",
-                label = "Studio Master Audio (M4A / MP3)",
-                resolution = "320kbps",
+                label = "Studio Audio (M4A)",
+                resolution = "Audio",
                 downloadUrl = audioUrl,
                 isAudioOnly = true,
                 extension = "m4a",
@@ -196,8 +196,8 @@ class SunoParser(private val client: OkHttpClient) {
         val formats = listOf(
             DownloadFormat(
                 id = "suno_audio_m4a",
-                label = "Studio Master Audio (M4A / MP3)",
-                resolution = "320kbps",
+                label = "Studio Audio (M4A)",
+                resolution = "Audio",
                 downloadUrl = song.audioUrl,
                 isAudioOnly = true,
                 extension = "m4a",

@@ -1,6 +1,10 @@
 package com.themastersahib.downloader
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -67,7 +71,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        handleIncomingShareIntent(intent)
+        // Only on a fresh start: a recreated activity must not re-run an old shared link.
+        if (savedInstanceState == null) {
+            handleIncomingShareIntent(intent)
+            requestRuntimePermissions()
+        }
 
         setContent {
             DownloadMasterTheme {
@@ -207,19 +215,7 @@ class MainActivity : ComponentActivity() {
                                 onRetryTask = { viewModel.retryTask(it) },
                                 onPlayMedia = { activePlayerUri = it },
                                 onSaveToGoogleDrive = { uri, isAudio ->
-                                    if (googleUser != null) {
-                                        viewModel.syncFileToUserGoogleDrive(
-                                            uri,
-                                            "DownloadMaster_${System.currentTimeMillis()}.${if (isAudio) "mp3" else "mp4"}",
-                                            if (isAudio) "audio/mpeg" else "video/mp4"
-                                        )
-                                    } else {
-                                        viewModel.saveToGoogleDrive(
-                                            this@MainActivity,
-                                            uri,
-                                            if (isAudio) "audio/mpeg" else "video/mp4"
-                                        )
-                                    }
+                                    saveToDrive(uri, isAudio, googleUser != null)
                                 }
                             )
                             Screen.Gallery -> GalleryScreen(
@@ -227,19 +223,7 @@ class MainActivity : ComponentActivity() {
                                 onRefresh = { viewModel.loadSavedFiles() },
                                 onPlayMedia = { activePlayerUri = it },
                                 onSaveToGoogleDrive = { uri, isAudio ->
-                                    if (googleUser != null) {
-                                        viewModel.syncFileToUserGoogleDrive(
-                                            uri,
-                                            "DownloadMaster_${System.currentTimeMillis()}.${if (isAudio) "mp3" else "mp4"}",
-                                            if (isAudio) "audio/mpeg" else "video/mp4"
-                                        )
-                                    } else {
-                                        viewModel.saveToGoogleDrive(
-                                            this@MainActivity,
-                                            uri,
-                                            if (isAudio) "audio/mpeg" else "video/mp4"
-                                        )
-                                    }
+                                    saveToDrive(uri, isAudio, googleUser != null)
                                 }
                             )
                             Screen.Settings -> SettingsScreen(
@@ -265,9 +249,36 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        viewModel.checkClipboardForVideoLink()
+    // Android 10+ only lets the focused window read the clipboard, so onResume is too early.
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) viewModel.checkClipboardForVideoLink()
+    }
+
+    private val permissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+
+    /** Notifications (Android 13+) for download progress, storage (Android 9 and older) for saving. */
+    private fun requestRuntimePermissions() {
+        val wanted = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            wanted += Manifest.permission.POST_NOTIFICATIONS
+        }
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            wanted += Manifest.permission.WRITE_EXTERNAL_STORAGE
+        }
+        val missing = wanted.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isNotEmpty()) permissionLauncher.launch(missing.toTypedArray())
+    }
+
+    private fun saveToDrive(uri: Uri, isAudio: Boolean, signedIn: Boolean) {
+        if (signedIn) {
+            viewModel.syncFileToUserGoogleDrive(uri, isAudio)
+        } else {
+            viewModel.saveToGoogleDrive(this, uri, if (isAudio) "audio/*" else "video/*")
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -277,7 +288,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIncomingShareIntent(intent: Intent?) {
         if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
-            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim()
             if (!sharedText.isNullOrEmpty()) {
                 viewModel.onUrlChanged(sharedText)
                 viewModel.fetchVideoInfo(sharedText)

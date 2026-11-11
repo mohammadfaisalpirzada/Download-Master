@@ -24,6 +24,9 @@ data class DownloadTask(
     val status: TaskStatus = TaskStatus.PENDING,
     val errorMessage: String? = null,
     val audioTrackUrl: String? = null,
+    val extension: String = if (isAudioOnly) "m4a" else "mp4",
+    val mimeType: String = if (isAudioOnly) "audio/mp4" else "video/mp4",
+    val extractAudio: Boolean = false,
     val timestamp: Long = System.currentTimeMillis()
 ) {
     val formattedSpeed: String

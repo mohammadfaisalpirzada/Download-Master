@@ -45,17 +45,20 @@ class NewPipeDownloader(private val client: OkHttpClient) : Downloader() {
             else -> reqBuilder.method(httpMethod, null)
         }
 
-        val call = client.newCall(reqBuilder.build())
-        val okResponse = call.execute()
-        val responseBody = okResponse.body?.string() ?: ""
-        val responseHeaders = okResponse.headers.toMultimap()
-
-        return Response(
-            okResponse.code,
-            okResponse.message,
-            responseHeaders,
-            responseBody,
-            okResponse.request.url.toString()
-        )
+        client.newCall(reqBuilder.build()).execute().use { okResponse ->
+            if (okResponse.code == 429) {
+                throw org.schabi.newpipe.extractor.exceptions.ReCaptchaException(
+                    "YouTube is rate limiting this network (429)",
+                    url
+                )
+            }
+            return Response(
+                okResponse.code,
+                okResponse.message,
+                okResponse.headers.toMultimap(),
+                okResponse.body?.string() ?: "",
+                okResponse.request.url.toString()
+            )
+        }
     }
 }
